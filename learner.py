@@ -23,6 +23,10 @@ class Learner:
         self.active_plan = [] # List of actions to execute
         self.agenda = []      # List of EXPECTED PERCEPTIONS (Mental Landmarks)
         self.bayesian = True  # Toggle for Bayesian Thompson Sampling
+        
+        # Stagnation Control (Loop Prevention)
+        self.pos_history = []  # Last 10 positions (x, y)
+        self.stagnant = False 
 
     def act(self, robot):
         """
@@ -39,8 +43,15 @@ class Learner:
         # 1. Follow active plan and update Visuospatial Agenda
         if self.active_plan:
             if self.agenda: self.agenda.pop(0)
+            self._update_stagnation(robot)
             return self.active_plan.pop(0)
- 
+  
+        # 1.5 Stagnation (Curiosity/Boredom) Check
+        self._update_stagnation(robot)
+        if self.stagnant:
+            # Force random move to break physical loop
+            return random.choice([ACT_LEFT, ACT_RIGHT, ACT_FORWARD, ACT_BACKWARD])
+
         # 2. Try to generate a plan to a goal (Cognitive Map check)
         new_plan, full_agenda = self.plan_with_agenda(perc_str)
         if new_plan:
@@ -234,3 +245,29 @@ class Learner:
 
         self.memory.conn.commit()
         return new_rules_count
+
+    def _update_stagnation(self, robot):
+        """
+        Updates internal position history and flags stagnation if 
+        the robot is physically stuck in a loop or corner.
+        """
+        self.pos_history.append((robot.x, robot.y))
+        if len(self.pos_history) > 10:
+            self.pos_history.pop(0)
+
+        if len(self.pos_history) < 6:
+            self.stagnant = False
+            return
+
+        # Check for static (no move in 3 steps)
+        if all(p == self.pos_history[-1] for p in self.pos_history[-3:]):
+            self.stagnant = True
+            return
+
+        # Check for oscillation (back and forth between 2 points)
+        last_4 = self.pos_history[-4:]
+        if last_4[0] == last_4[2] and last_4[1] == last_4[3]:
+            self.stagnant = True
+            return
+
+        self.stagnant = False
