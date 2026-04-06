@@ -195,10 +195,9 @@ class Learner:
         The 'Dream' phase. Analyzes chronological memory to:
         1. Apply the 'Forgetting Curve' (Entropy) to existing rules.
         2. Extract concrete rules from rewards.
-        3. Extract 'Situational Transitions': (S1, A) -> S2.
         """
         # Step 1: Forgetting (Biological Pruning)
-        self.memory.decay_rules(decay_amount=1)
+        self.memory.decay_rules(amount=1)
 
         history = self.memory.get_all_chrono()
         if not history: return 0
