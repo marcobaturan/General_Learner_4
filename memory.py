@@ -131,19 +131,3 @@ class Memory:
         cur = self.conn.cursor()
         cur.execute("DELETE FROM chrono_memory")
         self.conn.commit()
-
-    def decay_rules(self, decay_amount=1):
-        """
-        Simulates the 'Forgetting Curve'.
-        Positive weights decrease, negative weights increase (entropy).
-        Rules that reach a weight of 0 are deleted (forgotten).
-        """
-        cur = self.conn.cursor()
-        # Decaying positive weights
-        cur.execute("UPDATE rules SET weight = weight - ? WHERE weight > 0", (decay_amount,))
-        # Decaying negative weights (moving them toward 0)
-        cur.execute("UPDATE rules SET weight = weight + ? WHERE weight < 0", (decay_amount,))
-        # Clean up forgotten rules
-        cur.execute("DELETE FROM rules WHERE weight = 0")
-        self.conn.commit()
-        return cur.rowcount # Number of rules forgotten
