@@ -86,6 +86,11 @@ class GeneralLearnerApp:
         self.btn_network = Button(btn_x, y_off, btn_w, 35, "SHOW NETWORK", PURPLE)
         y_off += 40
         self.btn_bayes = Button(btn_x, y_off, btn_w, 35, "TOGGLE BAYES", CYAN)
+        y_off += 40
+        self.btn_pov = Button(btn_x, y_off, btn_w, 35, "TOGGLE POV", CYAN)
+
+        # POV State
+        self.show_pov = False
 
     def run(self):
         """Standard PyGame simulation loop."""
@@ -155,8 +160,10 @@ class GeneralLearnerApp:
                     self.export_report()
                 elif self.btn_network.is_clicked(pos):
                     self.show_network = not self.show_network
-                elif self.btn_bayes.is_clicked(pos):
+                if self.btn_bayes.is_clicked(event.pos):
                     self.learner.bayesian = not self.learner.bayesian
+                if self.btn_pov.is_clicked(event.pos):
+                    self.show_pov = not self.show_pov
 
                 # Grid interaction (Guide Mode)
                 if pos[0] < CANVAS_WIDTH:
@@ -307,6 +314,16 @@ class GeneralLearnerApp:
         self.btn_inform.draw(self.screen)
         self.btn_network.draw(self.screen)
         self.btn_bayes.draw(self.screen)
+        self.btn_pov.draw(self.screen)
+        
+        # 3. Cognitive Dashboard
+        self.draw_reports()
+
+        # 4. POV (3D Raycasting)
+        if self.show_pov:
+            # Position at the far right
+            pov_rect = pygame.Rect(WINDOW_WIDTH - POV_WIDTH - 20, 150, POV_WIDTH, 400)
+            graphics.draw_raycast_view(self.screen, pov_rect, self.robot, self.env)
  
         # 4. HUD Stats & Agenda
         bayes_status = "ENABLED" if self.learner.bayesian else "DISABLED"
@@ -327,9 +344,6 @@ class GeneralLearnerApp:
             plan_text = f"ACTIVE PLAN: [{len(self.learner.active_plan)} steps]"
             plan_surf = self.font.render(plan_text, True, BLUE)
             self.screen.blit(plan_surf, (CANVAS_WIDTH + 10, WINDOW_HEIGHT - 30))
-
-        # 5. Render Reporting Dashboard (Right Panel)
-        self.draw_reports()
 
         pygame.display.flip()
 
