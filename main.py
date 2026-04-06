@@ -15,19 +15,10 @@ class GeneralLearnerApp:
         pygame.display.set_caption("General Learner 4 - Cognitive Simulation")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont('Arial', 12) # Smaller font
-
         self.env = Environment()
         self.memory = Memory()
         self.robot = Robot(self.env)
         self.learner = Learner(self.memory)
-        
-        # Migration: Add is_composite if not exists
-        try:
-            self.memory.conn.execute("ALTER TABLE rules ADD COLUMN is_composite INTEGER DEFAULT 0")
-            self.memory.conn.commit()
-        except sqlite3.OperationalError:
-            # Column already exists
-            pass
         
         self.autonomous = False
         self.guide_mode = False
@@ -116,8 +107,7 @@ class GeneralLearnerApp:
                 elif self.btn_export.is_clicked(pos):
                     self.export_db()
                 elif self.btn_clear.is_clicked(pos):
-                    self.memory.clear_rules()
-                    self.memory.clear_chrono()
+                    self.memory.clear()
                     print("Memory cleared.")
                 elif self.btn_guide.is_clicked(pos):
                     self.guide_mode = not self.guide_mode
@@ -126,7 +116,7 @@ class GeneralLearnerApp:
                         self.guide_path = []
 
                 # Grid interaction for Guide Mode
-                elif pos[0] < CANVAS_WIDTH:
+                if pos[0] < CANVAS_WIDTH:
                     gx, gy = pos[0]//CELL_SIZE, pos[1]//CELL_SIZE
                     if self.guide_mode:
                         self.handle_guide_click(gx, gy)

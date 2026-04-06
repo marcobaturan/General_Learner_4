@@ -1,10 +1,8 @@
 import sqlite3
 import json
-import pygame
 
 class Memory:
     def __init__(self, db_path="general_learner.db"):
-        self.font = pygame.font.SysFont('Arial', 14) # Smaller font
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row
         self._init_db()
@@ -50,7 +48,7 @@ class Memory:
         """, (perc_str, action, reward))
         self.conn.commit()
 
-    def add_rule(self, perception_pattern, action, weight=1):
+    def add_rule(self, perception_pattern, action, weight=1, is_composite=0):
         cur = self.conn.cursor()
         perc_str = json.dumps(perception_pattern)
         
@@ -60,8 +58,8 @@ class Memory:
         if row:
             cur.execute("UPDATE rules SET weight = weight + ? WHERE id = ?", (weight, row['id']))
         else:
-            cur.execute("INSERT INTO rules (perception_pattern, target_action, weight) VALUES (?, ?, ?)", 
-                        (perc_str, action, weight))
+            cur.execute("INSERT INTO rules (perception_pattern, target_action, weight, is_composite) VALUES (?, ?, ?, ?)", 
+                        (perc_str, action, weight, is_composite))
         self.conn.commit()
 
     def get_all_chrono(self):
