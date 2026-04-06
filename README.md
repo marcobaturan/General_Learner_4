@@ -1,46 +1,48 @@
-# General Learner 4 - Cognitive Simulation
+# General Learner 4 (GL4): Cognitive Simulation & Situational Mapping
 
-![Project Preview](preview.png)
+General Learner 4 is an autonomous intelligent system inspired by the principles of the **Universal Learner** (Fritz et al., 1989) and modern cognitive neuroscience. It demonstrates emergent planning, biological homeostasis, and probabilistic reasoning within a 2D environment.
 
-An implementation of the **Universal Learner** concept based on the theories of Fritz et al. (1989). This simulation explores autonomous learning, situational awareness, and goal-oriented planning in a restricted 2D grid world.
+## 🧠 Cognitive Architecture
 
-## 🚀 Key Features
+The agent operates on a **Situational Transition Model**, where it learns the relationship between its perceptions, its actions, and the resulting state changes.
 
-- **Autonomous Planning**: The robot doesn't just react to immediate stimuli; it uses BFS-based planning to find sequences of actions that lead to known rewards (Batteries).
-- **Homeostatic Regulation**: The agent is driven by internal needs (Hunger and Tiredness). Tiredness triggers a "Dreaming" phase where episodic memories are consolidated into semantic rules.
-- **Vicarious Learning (Guide Mode)**: Users can manually "teach" the robot by clicking on the grid, creating high-reward associations for specific paths.
-- **Semantic Memory**: Uses a SQLite backend to store learned rules, including transitions ($S_1, A \rightarrow S_2$) and composite sequential patterns.
-- **Visual Analytics**: Real-time feedback on current perceptions, active plans, and homeostasis levels.
+### 1. Situational World Map (Conceptual Network)
+Inspired by the **O'Keefe & Nadel Hippocampal Model**, the agent builds a relational graph of the world:
+- **Nodes**: Unique 3x3 visual perceptions (Situations).
+- **Edges**: Learned actions that link these situations.
+- **Cognitive Map**: The agent treats the environment as a network, allowing it to calculate shortcuts and detours using its situational memory.
 
-## 🧠 Core Architecture
+### 2. Visuospatial Agenda (Mental Imagery)
+Unlike simple reactive agents, GL4 maintains a **Visuospatial Working Memory**:
+- When a goal is identified (e.g., a Battery), the robot performs a **mental search** through its situational graph.
+- It generates an **Agenda**: a sequence of "Mental Landmarks" (expected perceptions) that it predicts it will encounter.
+- This allows for high-level goal-oriented behavior beyond simple stimulus-response.
 
-The system is modularized into specialized components:
+### 3. Bayesian Decision Engine (Thompson Sampling)
+Action selection utilizes **Bayesian Inference** to balance exploration and exploitation:
+- **Thompson Sampling**: The agent maintains a probability distribution for each action's success.
+- **Probabilistic Action**: Instead of always picking the "best" move, it samples from a **Beta Distribution**. This mimics biological uncertainty, allowing the robot to explore when unsure and exploit when confident.
+- **Adaptive Learning**: As rules gain weight, their probability curves tighten, leading to more decisive autonomous behavior.
 
-1. **`learner.py`**: The cognitive core. Manages the decision engine (Planning vs. Reaction) and the Sleep Cycle (Consolidation).
-2. **`memory.py`**: The persistent storage layer. Handles SQLite migrations and queries for Episodic and Semantic knowledge.
-3. **`robot.py`**: The physical agent model. Manages movement, collisions, and internal biological variables.
-4. **`environment.py`**: The world model. Handles procedural generation of obstacles and resources.
-5. **`main.py`**: Orchestration and UI event handling using PyGame.
+### 4. Biological Homeostasis & Forgetting
+The system implements a homeostatic cycle (Sleep/Dream) to maintain cognitive health:
+- **Forgetting Curve**: Based on Ebbinghaus's principles, information decays over time. 
+- **Differential Persistence**: Spatial landmarks (nodes in the graph) have a **protected status**. They decay at 1/5th the rate of episodic rules, ensuring that the "Map of the World" remains stable while fleeting behavioral noise is pruned.
+- **Memory Consolidation**: During the "Dream" phase, episodic experiences are converted into stable transition rules and the semantic graph is updated.
 
-## 🛠️ Installation & Usage
+## 🛠️ Technical Implementation
+- **Core**: Python 3.11+
+- **Graphics**: Pygame (Hardware accelerated rendering)
+- **Persistence**: SQLite3 (Semantic Rule Engine)
+- **Algorithm**: BFS Graph Planning / Bayesian Thompson Sampling
 
-1. **Requirements**: Python 3.11+, PyGame.
-2. **Run**: 
-   ```bash
-   python main.py
-   ```
-3. **Controls**:
-   - **Autonomous**: Toggles the agent's self-directed behavior.
-   - **Guide Mode**: Click on tiles adjacent to the robot to lead it to a goal.
-   - **Dream / Sleep**: Manually trigger rule consolidation (happens automatically when Tiredness reaches 50).
-   - **Clear Memory**: Reset the SQLite database.
-
-## 🧪 Experimentation Guide
-
-- **Phase 1: Exploration**: Turn on Autonomous mode. The robot will move randomly, occasionally hitting walls or finding batteries.
-- **Phase 2: Reinforcement**: Use the `+` and `-` buttons to give immediate feedback on the robot's last action in a specific situation.
-- **Phase 3: Consolidation**: Let the robot "Sleep". You will see "New rules" in the console as it builds its internal world map.
-- **Phase 4: Planning**: Once enough transitions are learned, the robot will display `ACTIVE PLAN` when it sees a situation it knows can lead to a battery.
+## 🚀 How to Run
+```bash
+python main.py
+```
+- **GUIDE MODE**: Click the grid to "teach" the robot specific paths and watch its graph grow.
+- **TOGGLE BAYES**: Switch between deterministic and probabilistic (Thompson Sampling) decision-making.
+- **SHOW NETWORK**: Visualize the robot's internal "Mental Map."
 
 ---
-*Developed by Antigravity AI for research in Intelligent Systems.*
+*Created as an advanced implementation of agentic AI and autonomous cognitive systems.*

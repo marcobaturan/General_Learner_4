@@ -32,6 +32,7 @@ class GeneralLearnerApp:
         self.guide_path = [] # Visualization of the path being taught
         self.total_steps = 0
         self.stats_history = [] # Stores (step, score, rules_count)
+        self.show_network = False 
 
         # Load Graphical Assets (Procedural Bitmaps)
         self.robot_img = create_robot_icon(CELL_SIZE)
@@ -81,8 +82,12 @@ class GeneralLearnerApp:
         self.btn_guide = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "GUIDE MODE", GRAY)
         y_off += 45
         
-        # New Reporting Button
+        # New Reporting & Logic Buttons
         self.btn_inform = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "REPORT / INFORM", YELLOW)
+        y_off += 45
+        self.btn_network = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "SHOW NETWORK", PURPLE)
+        y_off += 45
+        self.btn_bayes = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "TOGGLE BAYES", CYAN)
 
     def run(self):
         """Standard PyGame simulation loop."""
@@ -150,6 +155,10 @@ class GeneralLearnerApp:
                     if not self.guide_mode: self.guide_path = []
                 elif self.btn_inform.is_clicked(pos):
                     self.export_report()
+                elif self.btn_network.is_clicked(pos):
+                    self.show_network = not self.show_network
+                elif self.btn_bayes.is_clicked(pos):
+                    self.learner.bayesian = not self.learner.bayesian
 
                 # Grid interaction (Guide Mode)
                 if pos[0] < CANVAS_WIDTH:
@@ -191,7 +200,15 @@ class GeneralLearnerApp:
 
     def dream(self):
         """Triggers the Sleep Cycle for rules consolidation."""
+        # 1. Consolidate new rules
         count = self.learner.sleep_cycle()
+        
+        # 2. Identify spatial landmarks to protect them from forgetting
+        nodes, _ = self.learner.get_situational_graph()
+        
+        # 3. Apply biological forgetting (Differential Decay)
+        self.memory.decay_rules(amount=1, spatial_perceptions=nodes)
+        
         self.memory.clear_chrono()
         print(f"Dream complete: Consolidated {count} rules/transitions.")
 
@@ -289,11 +306,24 @@ class GeneralLearnerApp:
         self.btn_export.draw(self.screen)
         self.btn_clear.draw(self.screen)
         self.btn_guide.draw(self.screen)
-
-        # 4. HUD Stats & Plan Feedback
-        stats = f"Score: {self.robot.score}  Hunger: {self.robot.hunger}  Tired: {self.robot.tiredness}"
+        self.btn_inform.draw(self.screen)
+        self.btn_network.draw(self.screen)
+        self.btn_bayes.draw(self.screen)
+ 
+        # 4. HUD Stats & Agenda
+        bayes_status = "ENABLED" if self.learner.bayesian else "DISABLED"
+        stats = f"Score: {self.robot.score}  Hunger: {self.robot.hunger}  BAYES: {bayes_status}"
         stat_surf = self.font.render(stats, True, BLACK)
-        self.screen.blit(stat_surf, (CANVAS_WIDTH + 10, WINDOW_HEIGHT - 50))
+        self.screen.blit(stat_surf, (CANVAS_WIDTH + 10, WINDOW_HEIGHT - 70))
+        
+        # VISUOSPATIAL AGENDA (Mental Landmarks)
+        agenda_title = self.font.render("VISUOSPATIAL AGENDA:", True, DARK_GRAY)
+        self.screen.blit(agenda_title, (CANVAS_WIDTH + 10, WINDOW_HEIGHT - 50))
+        
+        if self.learner.agenda:
+            for i, landmark in enumerate(self.learner.agenda[:5]):
+                import graphics
+                graphics.draw_mini_perception(self.screen, CANVAS_WIDTH + 10 + i*35, WINDOW_HEIGHT - 35, 30, landmark)
         
         if self.learner.active_plan:
             plan_text = f"ACTIVE PLAN: [{len(self.learner.active_plan)} steps]"
@@ -306,11 +336,20 @@ class GeneralLearnerApp:
         pygame.display.flip()
 
     def draw_reports(self):
-        """Renders graphical charts to the right panel."""
-        import graphics # Import draw_scaled_plot
+        """Renders graphical charts or situational network to the right panel."""
+        import graphics 
         rep_x = CANVAS_WIDTH + PANEL_WIDTH + 20
         rep_w = REPORT_WIDTH - 40
         
+        if self.show_network:
+            # Render the Situational Map (World Map from Situations)
+            nodes, edges = self.learner.get_situational_graph()
+            net_rect = pygame.Rect(rep_x, 60, rep_w, 450)
+            header_surf = pygame.font.SysFont('Arial', 20, bold=True).render("SITUATIONAL WORLD MAP", True, PURPLE)
+            self.screen.blit(header_surf, (rep_x, 20))
+            graphics.draw_situational_network(self.screen, net_rect, nodes, edges)
+            return
+
         # Header
         header_surf = pygame.font.SysFont('Arial', 20, bold=True).render("COGNITIVE PERFORMANCE", True, CYAN)
         self.screen.blit(header_surf, (rep_x, 20))

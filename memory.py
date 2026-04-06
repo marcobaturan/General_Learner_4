@@ -106,6 +106,26 @@ class Memory:
         cur.execute("DELETE FROM rules")
         self.conn.commit()
 
+    def decay_rules(self, amount=1, spatial_perceptions=None):
+        """
+        Applies biological forgetting. 
+        Spatial rules (landmarks) decay at 1/5th the rate of episodic behavioral rules.
+        """
+        cursor = self.conn.cursor()
+        if spatial_perceptions:
+            # Slower decay for spatial landmarks
+            placeholders = ','.join(['?'] * len(spatial_perceptions))
+            cursor.execute(f"UPDATE rules SET weight = weight - (? * 0.2) WHERE perception_pattern IN ({placeholders})", 
+                         [amount] + list(spatial_perceptions))
+            # Standard decay for others
+            cursor.execute(f"UPDATE rules SET weight = weight - ? WHERE perception_pattern NOT IN ({placeholders})", 
+                         [amount] + list(spatial_perceptions))
+        else:
+            cursor.execute("UPDATE rules SET weight = weight - ?", (amount,))
+            
+        cursor.execute("DELETE FROM rules WHERE weight <= 0")
+        self.conn.commit()
+
     def clear_chrono(self):
         """Clears episodic memory after consolidation."""
         cur = self.conn.cursor()

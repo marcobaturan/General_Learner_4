@@ -117,3 +117,50 @@ def draw_scaled_plot(screen, rect, data, color, title, label_y):
     max_surf = font.render(str(int(max_val)), True, DARK_GRAY)
     screen.blit(min_surf, (rect.x + 5, rect.y + rect.height - 18))
     screen.blit(max_surf, (rect.x + 5, rect.y + 20))
+
+def draw_mini_perception(screen, x, y, size, perception_str):
+    """Renders a small 3x3 visualization of a situational node."""
+    import json
+    try:
+        grid = json.loads(perception_str)
+        cell = size // 3
+        for r in range(3):
+            for c in range(3):
+                rect = pygame.Rect(x + c*cell, y + r*cell, cell, cell)
+                val = grid[r][c]
+                color = BLACK
+                if val == WALL_ID: color = GRAY
+                elif val == BATTERY_ID: color = GREEN
+                pygame.draw.rect(screen, color, rect)
+                pygame.draw.rect(screen, DARK_GRAY, rect, 1)
+    except:
+        pygame.draw.rect(screen, DARK_GRAY, (x, y, size, size))
+
+def draw_situational_network(screen, rect, nodes, edges):
+    """Draws the situational graph as a relational network."""
+    import math
+    pygame.draw.rect(screen, (15, 15, 20), rect)
+    pygame.draw.rect(screen, CYAN, rect, 2)
+    
+    if not nodes: return
+    
+    # Simple radial layout for nodes
+    center_x, center_y = rect.center
+    radius = min(rect.width, rect.height) // 3
+    node_pos = {}
+    
+    for i, node_id in enumerate(nodes):
+        angle = (i / len(nodes)) * 2 * math.pi
+        nx = center_x + radius * math.cos(angle)
+        ny = center_y + radius * math.sin(angle)
+        node_pos[node_id] = (nx, ny)
+        
+    # Draw edges
+    for s1, action, s2 in edges:
+        if s1 in node_pos and s2 in node_pos:
+            pygame.draw.line(screen, DARK_GRAY, node_pos[s1], node_pos[s2], 1)
+            
+    # Draw nodes as mini-perceptions
+    node_size = 30
+    for node_id, (nx, ny) in node_pos.items():
+        draw_mini_perception(screen, nx - node_size//2, ny - node_size//2, node_size, node_id)
