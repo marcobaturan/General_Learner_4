@@ -28,17 +28,40 @@ class Learner:
         self.pos_history = []  # Last 10 positions (x, y)
         self.stagnant = False 
 
-    def act(self, robot):
+    def act(self, robot, text_command=None):
         """
         Determines the next move.
+        0. Priotitize Textual Command associations.
         1. Checks for an active plan.
-        2. If no plan, tries to generate one toward a goal situation.
-        3. If no plan possible, uses the best reactive rule.
-        4. Fallback to random exploration.
+        2. If no plan, tries to generate one.
+        3. Best reactive rule.
         """
         state = robot.get_state()
         perception = state['perception']
         perc_str = json.dumps(perception)
+        
+        # 0. SYMBOLIC COMMAND PROCESSING
+        # If the user has typed something, search for rules associated with that text.
+        if text_command and text_command.strip():
+            cmd = text_command.strip().upper()
+            rules = self.memory.get_rules()
+            
+            # Priority 1: Context-specific command (Perception + Text)
+            for r in rules:
+                if r['perception_pattern'] == perc_str and r['command_text'] == cmd:
+                    if r['weight'] >= 2: # Minimum confidence
+                        return r['target_action']
+            
+            # Priority 2: General command (Anywhere + Text)
+            # Find the most frequent action for this string across all contexts
+            cmd_actions = {}
+            for r in rules:
+                if r['command_text'] == cmd:
+                    a = r['target_action']
+                    cmd_actions[a] = cmd_actions.get(a, 0) + r['weight']
+            
+            if cmd_actions:
+                return max(cmd_actions, key=cmd_actions.get)
 
         # 1. Follow active plan and update Visuospatial Agenda
         if self.active_plan:
@@ -204,10 +227,10 @@ class Learner:
     def sleep_cycle(self):
         """
         The 'Dream' phase. Analyzes chronological memory to:
-        1. Apply the 'Forgetting Curve' (Entropy) to existing rules.
-        2. Extract concrete rules from rewards.
+        1. Extract rules from rewards.
+        2. Map symbolic text to actions.
         """
-        # Step 1: Forgetting (Biological Pruning)
+        # Step 1: Forgetting
         self.memory.decay_rules(amount=1)
 
         history = self.memory.get_all_chrono()
@@ -220,27 +243,25 @@ class Learner:
             perc_pattern = json.loads(record['perception'])
             action = record['action']
             reward = record['reward']
+            cmd = record['command_text'].strip().upper() if record.get('command_text') else None
             
             next_perc = None
             if i < len(history) - 1:
                 next_perc = json.loads(history[i+1]['perception'])
 
-            if reward > 0:
-                self.memory.add_rule(perc_pattern, action, weight=5, next_perception=next_perc)
-                new_rules_count += 1
-                
-                if i > 0:
-                    prev_record = history[i-1]
-                    prev_perc = json.loads(prev_record['perception'])
-                    self.memory.add_rule(prev_perc, prev_record['action'], weight=3, is_composite=1, next_perception=perc_pattern)
-                    new_rules_count += 1
-
-            elif reward < -5:
-                self.memory.add_rule(perc_pattern, action, weight=-5, next_perception=next_perc)
-                new_rules_count += 1
+            # Rule reinforcement weight
+            w = 5 if reward > 0 else (1 if reward >= -5 else -5)
             
-            else:
-                self.memory.add_rule(perc_pattern, action, weight=1, next_perception=next_perc)
+            # Create Rule (with symbol if present)
+            self.memory.add_rule(perc_pattern, action, weight=w, next_perception=next_perc, command=cmd)
+            new_rules_count += 1
+            
+            # Back-propagation of success
+            if reward > 0 and i > 0:
+                prev_record = history[i-1]
+                prev_perc = json.loads(prev_record['perception'])
+                prev_cmd = prev_record['command_text'].strip().upper() if prev_record.get('command_text') else None
+                self.memory.add_rule(prev_perc, prev_record['action'], weight=3, is_composite=1, next_perception=perc_pattern, command=prev_cmd)
                 new_rules_count += 1
 
         self.memory.conn.commit()

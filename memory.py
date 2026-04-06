@@ -17,74 +17,89 @@ class Memory:
         """Initializes the database tables if they do not exist."""
         cur = self.conn.cursor()
         
-        # Chronological memory: Stores the exact sequence of perceptions, actions, and rewards.
+        # Chronological memory: Stores perceptions, actions, rewards, AND text stimulus.
         cur.execute("""
             CREATE TABLE IF NOT EXISTS chrono_memory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 perception TEXT NOT NULL,
                 action INTEGER NOT NULL,
                 reward INTEGER NOT NULL,
+                command_text TEXT DEFAULT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
-        # Rules memory: Stores associations between situations (perceptions) and actions.
-        # now extended with 'next_perception' to represent state transitions (S1, A) -> S2.
+        # Rules memory: Stores associations between situations, actions, and text stimuli.
         cur.execute("""
             CREATE TABLE IF NOT EXISTS rules (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 perception_pattern TEXT NOT NULL,
                 target_action INTEGER NOT NULL,
+                command_text TEXT DEFAULT NULL,
                 weight INTEGER DEFAULT 1,
                 is_composite INTEGER DEFAULT 0,
                 next_perception TEXT DEFAULT NULL
             )
         """)
 
-        # Migration: Ensure the is_composite and next_perception columns exist for older databases.
-        try:
-            cur.execute("ALTER TABLE rules ADD COLUMN is_composite INTEGER DEFAULT 0")
-        except sqlite3.OperationalError:
-            pass # Column already exists
-        
-        try:
-            cur.execute("ALTER TABLE rules ADD COLUMN next_perception TEXT DEFAULT NULL")
-        except sqlite3.OperationalError:
-            pass # Column already exists
+        # Migration: Ensure new columns exist for older databases.
+        cols = {
+            'chrono_memory': ['command_text TEXT DEFAULT NULL'],
+            'rules': [
+                'is_composite INTEGER DEFAULT 0',
+                'next_perception TEXT DEFAULT NULL',
+                'command_text TEXT DEFAULT NULL'
+            ]
+        }
+        for table, new_cols in cols.items():
+            for col_def in new_cols:
+                col_name = col_def.split()[0]
+                try:
+                    cur.execute(f"ALTER TABLE {table} ADD COLUMN {col_def}")
+                except sqlite3.OperationalError:
+                    pass 
         
         self.conn.commit()
 
-    def add_chrono(self, perception, action, reward):
-        """Adds a new event to the chronological (episodic) memory."""
+    def add_chrono(self, perception, action, reward, command=None):
+        """Adds a new event with optional command text to episodic memory."""
         cur = self.conn.cursor()
         perc_str = json.dumps(perception)
         cur.execute("""
-            INSERT INTO chrono_memory (perception, action, reward) 
-            VALUES (?, ?, ?)
-        """, (perc_str, action, reward))
+            INSERT INTO chrono_memory (perception, action, reward, command_text) 
+            VALUES (?, ?, ?, ?)
+        """, (perc_str, action, reward, command))
         self.conn.commit()
 
-    def add_rule(self, perception_pattern, action, weight=1, is_composite=0, next_perception=None):
+    def add_rule(self, perception_pattern, action, weight=1, is_composite=0, next_perception=None, command=None):
         """
         Adds or updates a rule in semantic memory.
-        If the (perception, action) pair exists, increments the weight.
+        If the (perception, action, command) triad exists, increments weight.
         """
         cur = self.conn.cursor()
         perc_str = json.dumps(perception_pattern)
         next_perc_str = json.dumps(next_perception) if next_perception else None
         
-        # Check if the rule already exists
-        cur.execute("SELECT id, weight FROM rules WHERE perception_pattern = ? AND target_action = ?", (perc_str, action))
+        # Check if the exact rule (same stimulus + command + action) exists
+        query = "SELECT id, weight FROM rules WHERE perception_pattern = ? AND target_action = ?"
+        params = [perc_str, action]
+        if command:
+            query += " AND command_text = ?"
+            params.append(command)
+        else:
+            query += " AND command_text IS NULL"
+
+        cur.execute(query, params)
         row = cur.fetchone()
         
         if row:
-            # Update existing rule
             cur.execute("UPDATE rules SET weight = weight + ?, is_composite = ?, next_perception = ? WHERE id = ?", 
                         (weight, is_composite, next_perc_str, row['id']))
         else:
-            # Insert new rule
-            cur.execute("INSERT INTO rules (perception_pattern, target_action, weight, is_composite, next_perception) VALUES (?, ?, ?, ?, ?)", 
-                        (perc_str, action, weight, is_composite, next_perc_str))
+            cur.execute("""
+                INSERT INTO rules (perception_pattern, target_action, weight, is_composite, next_perception, command_text) 
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (perc_str, action, weight, is_composite, next_perc_str, command))
         self.conn.commit()
 
     def get_all_chrono(self):

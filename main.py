@@ -141,6 +141,7 @@ class GeneralLearnerApp:
                     self.autonomous = False
                     self.guide_mode = False
                 elif self.btn_do.is_clicked(pos):
+                    # Manual Step / Command Execution
                     self.execute_step()
                 elif self.btn_plus.is_clicked(pos):
                     self.apply_manual_reinforcement(10)
@@ -172,13 +173,22 @@ class GeneralLearnerApp:
                     if self.guide_mode:
                         self.handle_guide_click(gx, gy)
 
-    def execute_step(self):
+    def execute_step(self, forced_action=None):
         """Triggers the robot to perform a single step/decision cycle."""
+        text_cmd = self.txt_box.text if self.txt_box.text else None
+        
         state = self.robot.get_state()
-        action = self.learner.act(self.robot)
+        
+        # Determine action: either the user-forced one (Guided) or the learner's act
+        if forced_action is not None:
+            action = forced_action
+        else:
+            action = self.learner.act(self.robot, text_command=text_cmd)
+            
         reward = self.robot.step(action)
         
-        self.memory.add_chrono(state['perception'], action, reward)
+        # Record experience WITH the current text command as a concurrent stimulus
+        self.memory.add_chrono(state['perception'], action, reward, command=text_cmd)
         self.last_action_reward = reward
         self.guide_path = []
         self.total_steps += 1
@@ -243,14 +253,16 @@ class GeneralLearnerApp:
         print("Performance report exported to behavior_report.txt")
 
     def handle_guide_click(self, gx, gy):
-        """Processes a grid click during Guide Mode to teach the robot a path."""
-        action = self.robot.get_action_to(gx, gy)
-        if action is not None:
-            self.guide_path.append((gx, gy))
-            state = self.robot.get_state()
-            reward = self.robot.step(action)
-            # Guided paths are automatically treated as high-reward examples (+10)
-            self.memory.add_chrono(state['perception'], action, 10)
+        """
+        Processes a grid click during Guide Mode. 
+        FORCED: Immediately moves the robot and associates text.
+        """
+        target_action = self.robot.get_action_to(gx, gy)
+        if target_action is not None:
+            # Immediate forced movement
+            self.execute_step(forced_action=target_action)
+            # Add visual feedback for the clicked target (briefly)
+            self.guide_path = [(gx, gy)]
 
     def update(self, dt):
         """Continuous simulation updates and UI color state."""
