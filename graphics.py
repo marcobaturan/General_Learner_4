@@ -199,6 +199,7 @@ def draw_raycast_view(screen, rect, robot, env):
         dist = 0
         hit = False
         hit_obj = EMPTY_ID
+        hit_side = 0 # 0 for vertical, 1 for horizontal
 
         # Ray Vector
         sin_a = math.sin(ray_angle)
@@ -216,9 +217,14 @@ def draw_raycast_view(screen, rect, robot, env):
                 if obj == WALL_ID or obj == BATTERY_ID:
                     hit = True
                     hit_obj = obj
+                    # Side detection (simple fractional check)
+                    dx = abs(rx - round(rx))
+                    dy = abs(ry - round(ry))
+                    hit_side = 1 if dy < dx else 0
             else:
                 hit = True # Out of bounds is wall-like
                 hit_obj = WALL_ID
+                hit_side = 0
 
         # 3. Project to 2D
         # Fisheye correction
@@ -233,6 +239,9 @@ def draw_raycast_view(screen, rect, robot, env):
         
         # Color & Shading
         brightness = max(0, 255 - int(dist * 20))
+        if hit_side == 1:
+            brightness = int(brightness * 0.7) # Side-shading
+            
         color = (brightness, brightness, brightness)
         if hit_obj == BATTERY_ID:
             color = (0, brightness, 0) # Green battery pillars
