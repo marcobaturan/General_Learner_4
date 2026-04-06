@@ -41,6 +41,12 @@ DIR_E = 1
 DIR_S = 2
 DIR_W = 3
 
+# Robot motor actions
+ACT_LEFT = 0
+ACT_RIGHT = 1
+ACT_FORWARD = 2
+ACT_BACKWARD = 3
+
 # UI Constants
 BTN_HEIGHT = 40
 BTN_MARGIN = 5

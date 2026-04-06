@@ -61,7 +61,7 @@ class Learner:
                 action_options[a].append(r['weight'])
 
         if not action_options:
-            return random.choice([CMD_UP, CMD_DOWN, CMD_LEFT, CMD_RIGHT])
+            return random.choice([ACT_LEFT, ACT_RIGHT, ACT_FORWARD, ACT_BACKWARD])
 
         # Thompson Sampling: Each action represents a probability distribution.
         # The agent samples from these distributions to balance exploration/exploitation.
