@@ -67,7 +67,6 @@ class Learner:
         # The agent samples from these distributions to balance exploration/exploitation.
         best_action = None
         if self.bayesian:
-            import random
             best_sample = -1
             for action, weights in action_options.items():
                 w = sum(weights) / len(weights)

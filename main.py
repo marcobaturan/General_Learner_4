@@ -49,45 +49,43 @@ class GeneralLearnerApp:
     def _init_buttons(self):
         btn_x = CANVAS_WIDTH + 20
         btn_w = PANEL_WIDTH - 40
-        y_off = 50
+        y_off = 20
         
         # Behavior Control
         self.btn_auto = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "AUTONOMOUS", GRAY)
-        y_off += 45
+        y_off += 40
         self.btn_comm = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "COMMAND", GRAY)
-        y_off += 50
+        y_off += 40
         
         # Direct Command Interface
         self.txt_box = TextBox(btn_x, y_off, btn_w, 25)
         y_off += 35
         self.btn_do = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "DO ACTION", GRAY)
-        y_off += 45
+        y_off += 40
         
         # Manual Reinforcement
         self.btn_plus = Button(btn_x, y_off, btn_w//2 - 5, BTN_HEIGHT, "+", GREEN)
         self.btn_minus = Button(btn_x + btn_w//2 + 5, y_off, btn_w//2 - 5, BTN_HEIGHT, "-", RED)
-        y_off += 45
+        y_off += 40
         
         # Knowledge Management
         self.btn_sleep = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "DREAM / SLEEP", BLUE)
-        y_off += 45
+        y_off += 40
         self.btn_export = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "EXPORT DATA", GRAY)
-        y_off += 45
+        y_off += 40
         self.btn_clear = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "CLEAR MEMORY", RED)
-        y_off += 45
-        
-        y_off += 45
+        y_off += 40
         
         # Vicarious Learning
-        self.btn_guide = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "GUIDE MODE", GRAY)
-        y_off += 45
+        self.btn_guide = Button(btn_x, y_off, btn_w, 35, "GUIDE MODE", GRAY)
+        y_off += 40
         
-        # New Reporting & Logic Buttons
-        self.btn_inform = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "REPORT / INFORM", YELLOW)
-        y_off += 45
-        self.btn_network = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "SHOW NETWORK", PURPLE)
-        y_off += 45
-        self.btn_bayes = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "TOGGLE BAYES", CYAN)
+        # Control & Reporting Buttons
+        self.btn_inform = Button(btn_x, y_off, btn_w, 35, "REPORT / INFORM", YELLOW)
+        y_off += 40
+        self.btn_network = Button(btn_x, y_off, btn_w, 35, "SHOW NETWORK", PURPLE)
+        y_off += 40
+        self.btn_bayes = Button(btn_x, y_off, btn_w, 35, "TOGGLE BAYES", CYAN)
 
     def run(self):
         """Standard PyGame simulation loop."""
