@@ -83,9 +83,9 @@ class Memory:
         next_perc_str = json.dumps(next_perception) if next_perception else None
         macro_str = json.dumps(macro_actions) if macro_actions else None
         
-        # Check if the exact rule (same stimulus + command + action/macro) exists
-        query = "SELECT id, weight FROM rules WHERE perception_pattern = ? AND target_action = ?"
-        params = [perc_str, action]
+        # Check if the exact rule (same stimulus + command + action/macro + type) exists
+        query = "SELECT id, weight FROM rules WHERE perception_pattern = ? AND target_action = ? AND is_composite = ?"
+        params = [perc_str, action, is_composite]
         if command:
             query += " AND command_text = ?"
             params.append(command)

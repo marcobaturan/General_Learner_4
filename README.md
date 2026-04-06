@@ -60,6 +60,12 @@ Unlike systems with hardcoded keywords, GL4 implements **Symbolic Grounding**:
 ![Command Interface](gl4_command.jpg)
 *Figure 3: The Symbolic Command and Homeostatic Sidebar.*
 
+### 5. Cognitive Macro Learning & Command Decomposition
+The GL4 now possesses the ability to **"chunk"** actions and decompose complex sentences:
+- **Macro Induction**: During the `SLEEP` cycle, the agent scans its history for repetitive patterns under the same command string (e.g., "L-SHAPE") and creates a **Composite Rule**.
+- **Recursive Decomposition**: The agent can now process multi-part commands like "Avanza y Gira". It splits the string by conjunctions (`,`, `y`) and executes the sub-parts sequentially using its `Active Plan` buffer.
+- **Sequential Execution**: Loaded macros are stored in the user's `active_plan`, allowing the robot to execute long behavioral sequences from a single textual trigger.
+
 ---
 
 ## 🦮 Guided Mode (Vicarious Learning)

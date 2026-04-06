@@ -307,6 +307,7 @@ class Learner:
                 self.memory.add_rule(prev_perc, prev_record['action'], weight=3, is_composite=1, next_perception=perc_pattern, command=prev_cmd)
                 new_rules_count += 1
 
+        self.memory.clear_chrono()
         self.memory.conn.commit()
         return new_rules_count
 
