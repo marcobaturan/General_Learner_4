@@ -26,9 +26,11 @@ class Learner:
         self.agenda = []      # List of EXPECTED PERCEPTIONS (Fuzzy Vectors)
         self.bayesian = True  # Toggle for Bayesian Thompson Sampling
         self.fuzzy_processor = FBN()
+        self.last_inference_info = {"type": "IDLE", "details": ""}
         
         # Stagnation Control (Loop Prevention)
         self.pos_history = []  # Last 10 positions (x, y)
+        self.action_history = [] # Last 10 actions
         self.stagnant = False 
 
     def act(self, robot, text_command=None):
@@ -58,6 +60,7 @@ class Learner:
                         actions = json.loads(r['macro_actions'])
                         if actions:
                             self.active_plan = actions[1:]
+                            self.last_inference_info = {"type": "MACRO MATCH", "details": f"Command: {text_command}"}
                             return actions[0]
                     except: continue
 
@@ -73,6 +76,7 @@ class Learner:
                 
                 if decomposed_plan:
                     self.active_plan = decomposed_plan[1:]
+                    self.last_inference_info = {"type": "DECOMPOSITION", "details": f"Tokens: {len(concept_ids)}"}
                     return decomposed_plan[0]
 
             # --- PHASE C: SIMPLE CONCEPT MATCH ---
@@ -80,22 +84,38 @@ class Learner:
             for r in rules:
                 if r['perception_pattern'] == perc_id and r['command_id'] == full_text_id:
                     if r['weight'] >= 2:
+                        self.last_inference_info = {"type": "ASSOCIATIVE MEMORY", "details": f"Rule Weight: {r['weight']:.2f}"}
                         return r['target_action']
             
             # Priority 2: General concept (Anywhere + Token)
             sub_action = self._get_action_for_concept(full_text_id, rules)
-            if sub_action is not None: return sub_action
+            if sub_action is not None: 
+                self.last_inference_info = {"type": "GENERAL CONCEPT", "details": f"Token ID: {full_text_id}"}
+                return sub_action
 
         # 1. Follow active plan
         if self.active_plan:
             if self.agenda: self.agenda.pop(0)
             self._update_stagnation(robot)
+            self.last_inference_info = {"type": "Executing Plan", "details": f"Remaining: {len(self.active_plan)}"}
             return self.active_plan.pop(0)
    
-        # 1.5 Stagnation (Curiosity/Boredom) Check
+        # 1.5 Stagnation (Curiosity/Boredom/Obsession) Check
         self._update_stagnation(robot)
         if self.stagnant:
-            return random.choice([ACT_LEFT, ACT_RIGHT, ACT_FORWARD, ACT_BACKWARD])
+            self.last_inference_info = {"type": "STAGNANT (Obsession)", "details": "Forced Loop Break"}
+            
+            # To break out, we don't just act randomly, we heavily bias towards completely different actions
+            # If we were spinning, we force FORWARD. If we were bumping forward, we force a TURN.
+            last_act = self.action_history[-1] if self.action_history else None
+            break_action = ACT_FORWARD
+            if last_act == ACT_FORWARD: break_action = random.choice([ACT_LEFT, ACT_RIGHT, ACT_BACKWARD])
+            elif last_act in [ACT_LEFT, ACT_RIGHT]: break_action = ACT_FORWARD
+            
+            # 80% chance to force the break_action, 20% complete random
+            chosen = break_action if random.random() < 0.8 else random.choice([ACT_LEFT, ACT_RIGHT, ACT_FORWARD, ACT_BACKWARD])
+            self.action_history.append(chosen)
+            return chosen
 
         # 2. Decision Logic: Select best action (Fuzzy Bayesian TS)
         rules = self.memory.get_rules()
@@ -107,6 +127,7 @@ class Learner:
                 action_options[a].append(r['weight'])
 
         if not action_options:
+            self.last_inference_info = {"type": "UNKNOWN SITUATION", "details": "Random Action"}
             return random.choice([ACT_LEFT, ACT_RIGHT, ACT_FORWARD, ACT_BACKWARD])
 
         # Thompson Sampling
@@ -119,7 +140,15 @@ class Learner:
             if sample > best_sample:
                 best_sample = sample
                 best_action = action
+                
+        if best_action is not None:
+            opts_str = ", ".join([f"A{k}:{sum(v)/len(v):.1f}" for k,v in action_options.items()])
+            self.last_inference_info = {"type": "THOMPSON SAMPLING", "details": opts_str}
         
+        if best_action is not None:
+            self.action_history.append(best_action)
+            if len(self.action_history) > 10: self.action_history.pop(0)
+
         return best_action
 
     def _get_action_for_concept(self, concept_id, rules):
@@ -292,15 +321,21 @@ class Learner:
             self.stagnant = False
             return
 
-        # Check for static (no move in 3 steps)
+        # 1. Check for physical static position (no move in 3 steps)
         if all(p == self.pos_history[-1] for p in self.pos_history[-3:]):
             self.stagnant = True
             return
 
-        # Check for oscillation (back and forth between 2 points)
+        # 2. Check for physical oscillation (back and forth between 2 points)
         last_4 = self.pos_history[-4:]
         if last_4[0] == last_4[2] and last_4[1] == last_4[3]:
             self.stagnant = True
             return
+
+        # 3. Check for action obsession (e.g., spinning in place endlessly taking the same action)
+        if len(self.action_history) >= 4:
+            if len(set(self.action_history[-4:])) == 1:
+                self.stagnant = True
+                return
 
         self.stagnant = False

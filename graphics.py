@@ -307,3 +307,41 @@ def draw_raycast_view(screen, rect, robot, env):
     font = pygame.font.SysFont('Arial', 14)
     lbl = font.render(" POV - ROBOT VISION", True, WHITE)
     screen.blit(lbl, (rect.x + 5, rect.y + 5))
+
+def draw_inferences_window(screen, rect, learner):
+    """Draws the real-time cognitive inferences of the Learner."""
+    pygame.draw.rect(screen, (20, 20, 25), rect)
+    pygame.draw.rect(screen, ORANGE, rect, 2)
+    
+    font_title = pygame.font.SysFont('Arial', 14, bold=True)
+    font_body = pygame.font.SysFont('Arial', 12)
+    
+    lbl = font_title.render("INFERENCES (Real-time Processing)", True, ORANGE)
+    screen.blit(lbl, (rect.x + 5, rect.y + 5))
+    
+    y_off = rect.y + 30
+    
+    inf_type = learner.last_inference_info.get("type", "N/A")
+    inf_det = learner.last_inference_info.get("details", "")
+    
+    type_surf = font_body.render(f"Decision Logic: {inf_type}", True, CYAN)
+    screen.blit(type_surf, (rect.x + 10, y_off))
+    y_off += 18
+    
+    det_surf = font_body.render(f"Details: {inf_det}", True, (200, 200, 200))
+    screen.blit(det_surf, (rect.x + 10, y_off))
+    y_off += 25
+    
+    plan_text = f"Active Sequence: {learner.active_plan}" if learner.active_plan else "Active Sequence: [EMPTY]"
+    plan_color = GREEN if learner.active_plan else DARK_GRAY
+    plan_surf = font_body.render(plan_text, True, plan_color)
+    screen.blit(plan_surf, (rect.x + 10, y_off))
+    y_off += 18
+    
+    agenda_len = len(learner.agenda)
+    ag_surf = font_body.render(f"Expected Agenda Nodes: {agenda_len}", True, PURPLE if agenda_len > 0 else DARK_GRAY)
+    screen.blit(ag_surf, (rect.x + 10, y_off))
+    y_off += 18
+    
+    stag_surf = font_body.render(f"Stagnation Borer: {'DETECTED' if learner.stagnant else 'CLEAR'}", True, RED if learner.stagnant else (100, 100, 100))
+    screen.blit(stag_surf, (rect.x + 10, y_off))

@@ -91,9 +91,14 @@ class GeneralLearnerApp:
         self.btn_pov = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "TOGGLE POV", CYAN)
         y_off += step_y
         self.btn_inform = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "EXPORT REPORT", YELLOW)
+        y_off += step_y
+        self.btn_inferences = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "INFERENCES", ORANGE)
+        y_off += step_y
+        self.btn_new_maze = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "NEW MAZE", RED)
 
-        # POV State
+        # UI States
         self.show_pov = False
+        self.show_inferences = False
 
     def run(self):
         """Standard PyGame simulation loop."""
@@ -170,6 +175,16 @@ class GeneralLearnerApp:
                     self.learner.bayesian = not self.learner.bayesian
                 if self.btn_pov.is_clicked(event.pos):
                     self.show_pov = not self.show_pov
+                if self.btn_inferences.is_clicked(event.pos):
+                    self.show_inferences = not self.show_inferences
+                if self.btn_new_maze.is_clicked(event.pos):
+                    self.env.reset()
+                    self.robot.x, self.robot.y = GRID_W // 2, GRID_H // 2
+                    self.robot.direction = DIR_N
+                    self.learner.pos_history.clear()
+                    self.learner.action_history.clear()
+                    self.learner.active_plan.clear()
+                    print("Maze regenerated and robot position reset.")
 
                 # Grid interaction (Guide Mode)
                 if pos[0] < CANVAS_WIDTH:
@@ -338,6 +353,8 @@ class GeneralLearnerApp:
         self.btn_territory.draw(self.screen)
         self.btn_bayes.draw(self.screen)
         self.btn_pov.draw(self.screen)
+        self.btn_inferences.draw(self.screen)
+        self.btn_new_maze.draw(self.screen)
         
         # 3. Cognitive Dashboard
         self.draw_reports()
@@ -367,6 +384,11 @@ class GeneralLearnerApp:
             plan_text = f"ACTIVE PLAN: [{len(self.learner.active_plan)} steps]"
             plan_surf = self.font.render(plan_text, True, BLUE)
             self.screen.blit(plan_surf, (CANVAS_WIDTH + 10, WINDOW_HEIGHT - 30))
+
+        # 5. Inferences Sub-Window (Below 2D World)
+        if self.show_inferences:
+            inf_rect = pygame.Rect(10, CANVAS_HEIGHT + 15, CANVAS_WIDTH - 20, 150)
+            graphics.draw_inferences_window(self.screen, inf_rect, self.learner)
 
         pygame.display.flip()
 
