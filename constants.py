@@ -224,6 +224,13 @@ Reference: Graybiel, A.M. (2008). Habits, rituals, and the
 evaluative brain. Annual Review of Neuroscience, 31, 359-387.
 """
 
+MAX_RULES_PER_SLEEP_CYCLE = 50
+"""
+Maximum number of rules to consolidate per sleep cycle.
+Limits memory processing to prevent system overload.
+Higher values = more consolidation but slower processing.
+"""
+
 # ====================
 # Reinforcement Values
 # ====================
