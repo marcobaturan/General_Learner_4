@@ -2,6 +2,8 @@ import pygame
 import sys
 import json
 import sqlite3
+import psutil
+import os
 from constants import *
 from environment import Environment
 from robot import Robot
@@ -61,6 +63,13 @@ class GeneralLearnerApp:
 
         # UI Layout Setup
         self._init_buttons()
+
+        # Performance caching
+        self._cache_timestamp = 0
+        self._cache_rules = None
+        self._cache_frames = None
+        self._cache_graph = None
+        self._cache_interval = 10  # Refresh every 10 frames
 
     def _init_buttons(self):
         btn_x = CANVAS_WIDTH + 20
@@ -187,6 +196,9 @@ class GeneralLearnerApp:
                     self.dream()
                 elif self.btn_clear.is_clicked(pos):
                     self.memory.clear()
+                    self._cache_rules = None
+                    self._cache_frames = None
+                    self._cache_graph = None
                     print("Memory wiped.")
                 elif self.btn_guide.is_clicked(pos):
                     self.guide_mode = not self.guide_mode
@@ -215,6 +227,7 @@ class GeneralLearnerApp:
                     self.learner.pos_history.clear()
                     self.learner.action_history.clear()
                     self.learner.active_plan.clear()
+                    self._cache_graph = None
                     print("Maze regenerated and robot position reset.")
                 if self.btn_reset_stagnation.is_clicked(event.pos):
                     self.learner.stagnant = False
@@ -252,15 +265,28 @@ class GeneralLearnerApp:
         self.guide_path = []
         self.total_steps += 1
 
+        # Invalidate cache after learning
+        self._cache_rules = None
+
         # Synchronize stats for reports
         if self.total_steps % 5 == 0:
             self.capture_stats()
 
     def capture_stats(self):
         """Records current metrics for the reporting dashboard."""
-        rules_count = len(self.memory.get_rules())
+        rules_count = len(self._cache_rules) if self._cache_rules is not None else 0
+        process = psutil.Process(os.getpid())
+        mem_info = process.memory_info()
+        mem_mb = mem_info.rss / (1024 * 1024)
+        cpu_percent = process.cpu_percent()
         self.stats_history.append(
-            {"step": self.total_steps, "score": self.robot.score, "rules": rules_count}
+            {
+                "step": self.total_steps,
+                "score": self.robot.score,
+                "rules": rules_count,
+                "memory_mb": round(mem_mb, 1),
+                "cpu_percent": round(cpu_percent, 1),
+            }
         )
 
     def apply_manual_reinforcement(self, amount):
@@ -279,6 +305,7 @@ class GeneralLearnerApp:
                 perc_id, last["action"], weight=amount, command_id=cmd_id
             )
             print(f"Manual reinforcement applied: {amount}")
+            self._cache_rules = None
 
     def dream(self):
         """Triggers the Sleep Cycle for rules consolidation."""
@@ -548,14 +575,18 @@ class GeneralLearnerApp:
                 self.screen, pov_rect, self.robot, self.env, self.learner
             )
 
-        # 4. HUD Stats & Agenda
+        # 4. HUD Stats & Agenda (with caching - only update when needed)
+        if self._cache_rules is None:
+            self._cache_rules = self.memory.get_rules()
+            self._cache_frames = self.memory.get_all_frames()
+            self._cache_graph = self.learner.get_situational_graph()
+            self._cache_timestamp = self.total_steps
+
+        rules_count = len(self._cache_rules) if self._cache_rules else 0
+        rft_count = len(self._cache_frames) if self._cache_frames else 0
         bayes_status = "ENABLED" if self.learner.bayesian else "DISABLED"
         auto_status = "AUTO" if self.autonomous else "MANUAL"
         guide_status = "GUIDE" if self.guide_mode else "FREE"
-        frames = self.memory.get_all_frames()
-        rft_count = len(frames)
-        rules = self.memory.get_rules()
-        rules_count = len(rules)
         stats = f"Score: {self.robot.score} | Rules: {rules_count} | BAYES: {bayes_status} | {auto_status} | {guide_status} | RFT: {rft_count}"
         stat_surf = self.font.render(stats, True, BLACK)
         self.screen.blit(stat_surf, (CANVAS_WIDTH + 10, WINDOW_HEIGHT - 70))
@@ -590,14 +621,16 @@ class GeneralLearnerApp:
 
     def draw_reports(self):
         """Renders graphical charts or situational network to the right panel."""
-        # Position closer to sidebar
         rep_x = CANVAS_WIDTH + PANEL_WIDTH + 10
         rep_w = REPORT_WIDTH - 30
 
         if self.show_network:
             rep_rect = pygame.Rect(rep_x, 60, rep_w, 450)
             if self.view_mode == "SITUATIONAL":
-                nodes, edges = self.learner.get_situational_graph()
+                if self._cache_graph:
+                    nodes, edges = self._cache_graph
+                else:
+                    nodes, edges = self.learner.get_situational_graph()
                 header_surf = pygame.font.SysFont("Arial", 20, bold=True).render(
                     "SITUATIONAL WORLD MAP", True, PURPLE
                 )
@@ -652,12 +685,19 @@ class GeneralLearnerApp:
             "R",
         )
 
+        # Resource Monitor (Memory & CPU)
+        mem_data = [s.get("memory_mb", 0) for s in self.stats_history]
+        cpu_data = [s.get("cpu_percent", 0) for s in self.stats_history]
+        res_rect = pygame.Rect(rep_x, 60 + (chart_h + 30) * 2, rep_w, 100)
+        graphics.draw_resource_monitor(self.screen, res_rect, mem_data, cpu_data)
+
         # Session Insights
-        insight_y = 60 + (chart_h + 30) * 2
+        insight_y = 60 + (chart_h + 30) * 3
         insights = [
             f"Learning Efficiency: {knowledge_data[-1] / (self.total_steps + 1):.2f} rules/step",
             f"Average Reward: {score_data[-1] / (self.total_steps + 1):.2f} pts/step",
             f"Total Exploratory Steps: {self.total_steps}",
+            f"Memory: {mem_data[-1]:.1f} MB | CPU: {cpu_data[-1]:.1f}%",
         ]
         for i, text in enumerate(insights):
             surf = self.font.render(text, True, (180, 180, 180))

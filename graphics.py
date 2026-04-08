@@ -64,13 +64,13 @@ class Button:
         self.color = color
         self.text_color = text_color
         self.font = pygame.font.SysFont("Arial", 18)
+        self._text_surface = self.font.render(text, True, text_color)
 
     def draw(self, screen):
         pygame.draw.rect(screen, self.color, self.rect)
         pygame.draw.rect(screen, BLACK, self.rect, 2)
-        txt_surf = self.font.render(self.text, True, self.text_color)
-        txt_rect = txt_surf.get_rect(center=self.rect.center)
-        screen.blit(txt_surf, txt_rect)
+        txt_rect = self._text_surface.get_rect(center=self.rect.center)
+        screen.blit(self._text_surface, txt_rect)
 
     def is_clicked(self, pos):
         return self.rect.collidepoint(pos)
@@ -150,6 +150,55 @@ def draw_scaled_plot(screen, rect, data, color, title, label_y):
     screen.blit(max_surf, (rect.x + 5, rect.y + 20))
 
 
+def draw_resource_monitor(screen, rect, mem_data, cpu_data):
+    """
+    Draws a resource monitor showing memory (MB) and CPU (%) usage over time.
+    """
+    pygame.draw.rect(screen, (20, 20, 25), rect)
+    pygame.draw.rect(screen, DARK_GRAY, rect, 2)
+
+    font = pygame.font.SysFont("Arial", 14)
+    tit_surf = font.render("RESOURCE MONITOR", True, WHITE)
+    screen.blit(tit_surf, (rect.x + 5, rect.y + 5))
+
+    if len(mem_data) < 2:
+        return
+
+    # Memory line (blue)
+    max_mem = max(mem_data) if max(mem_data) > 0 else 1
+    plot_w = rect.width - 40
+    plot_h = rect.height - 30
+    margin_x = 20
+    margin_y = 15
+
+    mem_points = []
+    for i, val in enumerate(mem_data):
+        x = rect.x + margin_x + (i / (len(mem_data) - 1)) * plot_w
+        y = rect.y + rect.height - margin_y - (val / max_mem) * plot_h
+        mem_points.append((x, y))
+
+    if len(mem_points) >= 2:
+        pygame.draw.lines(screen, BLUE, False, mem_points, 2)
+
+    # CPU line (orange)
+    max_cpu = max(cpu_data) if max(cpu_data) > 0 else 1
+    cpu_points = []
+    for i, val in enumerate(cpu_data):
+        x = rect.x + margin_x + (i / (len(cpu_data) - 1)) * plot_w
+        y = rect.y + rect.height - margin_y - (val / max_cpu) * plot_h
+        cpu_points.append((x, y))
+
+    if len(cpu_points) >= 2:
+        pygame.draw.lines(screen, ORANGE, False, cpu_points, 2)
+
+    # Legend
+    leg_y = rect.y + rect.height - 12
+    mem_leg = font.render("Mem (MB)", True, BLUE)
+    cpu_leg = font.render("CPU (%)", True, ORANGE)
+    screen.blit(mem_leg, (rect.x + 5, leg_y))
+    screen.blit(cpu_leg, (rect.x + 80, leg_y))
+
+
 def draw_mini_perception(screen, x, y, size, fuzzy_perc_id):
     """Renders a simplified view of the fuzzy perception vector."""
     import json
@@ -174,7 +223,7 @@ def draw_mini_perception(screen, x, y, size, fuzzy_perc_id):
         for i, feat in enumerate(vector[:3]):
             txt = font.render(feat[:15], True, WHITE)
             screen.blit(txt, (x + 2, y + 2 + i * 10))
-    except:
+    except (json.JSONDecodeError, KeyError, TypeError):
         pass
 
 
@@ -244,7 +293,7 @@ def draw_situational_network(
             cur.execute("SELECT id, value FROM conceptual_ids")
             for row in cur.fetchall():
                 cmd_cache[row["id"]] = row["value"]
-        except:
+        except sqlite3.Error:
             pass
 
     for i, node_id in enumerate(nodes):
@@ -315,8 +364,11 @@ def draw_raycast_view(screen, rect, robot, env, learner=None):
 
     fov = math.pi / 3  # 60 degrees
     half_fov = fov / 2
-    num_rays = rect.width // 2  # Resolution skip for performance
+    num_rays = rect.width // 2  # Original resolution
     delta_angle = fov / num_rays
+
+    # Column width to fill the entire rect
+    col_width = rect.width // num_rays
 
     # Starting ray angle
     ray_angle = base_angle - half_fov
@@ -328,7 +380,7 @@ def draw_raycast_view(screen, rect, robot, env, learner=None):
     # 2. Iterate through screen horizontal columns
     for i in range(num_rays):
         # Step small increments along the ray
-        step = 0.05
+        step = 0.08  # Smaller step for better accuracy
         max_dist = 12.0
         dist = 0
         hit = False
@@ -379,6 +431,7 @@ def draw_raycast_view(screen, rect, robot, env, learner=None):
 
         # Vertical column rendering
         y1 = rect.y + rect.height // 2 - proj_h // 2
+        y2 = rect.y + rect.height // 2 + proj_h // 2
 
         # Color & Shading
         brightness = max(0, 255 - int(dist * 20))
@@ -393,7 +446,10 @@ def draw_raycast_view(screen, rect, robot, env, learner=None):
             mirror_color = (100, 80, 150)
             color = mirror_color
 
-        pygame.draw.rect(screen, color, (rect.x + i * 2, y1, 2, proj_h))
+        # Draw filled rectangle for the column
+        pygame.draw.rect(
+            screen, color, (rect.x + i * col_width, y1, col_width, y2 - y1)
+        )
 
         ray_angle += delta_angle
 
@@ -557,7 +613,7 @@ def draw_inferences_window(screen, rect, learner, robot=None):
                     notfound = font_body.render("→ NOT YET LEARNED", True, RED)
                     screen.blit(notfound, (rect.x + 10, y_off))
                     y_off += 16
-            except:
+            except (json.JSONDecodeError, KeyError, TypeError, sqlite3.Error):
                 pass
     else:
         # No command - show autonomous mode info

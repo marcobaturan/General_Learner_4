@@ -230,6 +230,13 @@ class Memory:
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_rules_memory_type ON rules(memory_type)"
         )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_rules_weight ON rules(weight DESC)")
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rules_command_perc ON rules(command_id, perception_pattern)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rules_next_perc ON rules(next_perception)"
+        )
 
         # GL5: Add maze_id column to territory if not exists (migration)
         try:

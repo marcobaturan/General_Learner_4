@@ -230,7 +230,7 @@ class Learner:
                 ]
             else:
                 self._last_perception = []
-        except:
+        except (json.JSONDecodeError, KeyError, TypeError):
             self._last_perception = []
 
         # Cache rules for act() to avoid repeated DB queries
@@ -275,7 +275,7 @@ class Learner:
                                 "details": f"Command: {text_command}",
                             }
                             return actions[0]
-                    except:
+                    except (json.JSONDecodeError, KeyError, TypeError):
                         continue
 
             # --- PHASE B: TOKEN DECOMPOSITION ---
@@ -883,8 +883,11 @@ class Learner:
             else:
                 i += 1
 
-        # 3. Standard consolidation
+        # 3. Standard consolidation (limited per cycle)
+        max_per_cycle = MAX_RULES_PER_SLEEP_CYCLE - new_rules_count
         for i in range(len(history)):
+            if new_rules_count >= MAX_RULES_PER_SLEEP_CYCLE:
+                break
             record = history[i]
             perc_vector = json.loads(record["perception"])
             perc_id = json.dumps(perc_vector)
