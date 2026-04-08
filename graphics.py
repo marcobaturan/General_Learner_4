@@ -490,16 +490,6 @@ def draw_raycast_view(screen, rect, robot, env, learner=None):
             id_surf = font.render(id_text, True, (255, 150, 150))
             screen.blit(id_surf, (ref_x + 5, ref_y + ref_h + 5))
 
-        # Draw ID as two digit braille-like pattern
-        # First digit dots
-        d1 = int(id_str[0])
-        d2 = int(id_str[1]) if len(id_str) > 1 else 0
-
-        # Show ID in text below
-        id_text = f"ID:{id_str}"
-        id_surf = font.render(id_text, True, (255, 150, 150))
-        screen.blit(id_surf, (ref_x + 5, ref_y + ref_h + 5))
-
     # HUD label
     font = pygame.font.SysFont("Arial", 14)
     lbl = font.render(" POV - ROBOT VISION", True, WHITE)

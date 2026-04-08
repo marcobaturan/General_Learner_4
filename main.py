@@ -248,6 +248,13 @@ class GeneralLearnerApp:
         """Triggers the robot to perform a single step/decision cycle."""
         text_cmd = self.txt_box.text.strip() if self.txt_box.text else None
 
+        # Check if guided (forced action = guided mode)
+        is_guided = forced_action is not None
+        if is_guided:
+            self.learner._guided_this_step = True
+        else:
+            self.learner._guided_this_step = False
+
         state = self.robot.get_state()
 
         # Determine action: either the user-forced one (Guided) or the learner's act

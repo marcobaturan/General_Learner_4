@@ -297,25 +297,32 @@ class Learner:
 
             # --- PHASE C: SIMPLE CONCEPT MATCH ---
             # Context-specific + general concept retrieval
-            for r in rules:
-                if (
-                    r["perception_pattern"] == perc_id
-                    and r["command_id"] == full_text_id
-                ):
-                    if r["weight"] >= 2:
-                        self.last_inference_info = {
-                            "type": "ASSOCIATIVE MEMORY",
-                            "details": f"Rule Weight: {r['weight']:.2f}",
-                        }
-                        return r["target_action"]
+            # GL5: Priority - first check general command (any perception)
+            best_action = None
+            best_weight = -999
 
-            sub_action = self._get_action_for_concept(full_text_id, rules)
-            if sub_action is not None:
+            for r in rules:
+                if r["command_id"] == full_text_id:
+                    # GL5: Accept both specific perception OR general command
+                    # Specific match (same perception) OR general (no perception filter)
+                    is_specific_match = r["perception_pattern"] == perc_id
+                    has_perception = (
+                        r["perception_pattern"] and r["perception_pattern"] != "None"
+                    )
+
+                    # If has perception, need match. If no perception, accept any.
+                    if (is_specific_match) or (not has_perception):
+                        # Weight threshold: positive = good, negative = avoid
+                        if r["weight"] > best_weight:
+                            best_weight = r["weight"]
+                            best_action = r["target_action"]
+
+            if best_action is not None and best_weight > -5:  # Not heavily punished
                 self.last_inference_info = {
-                    "type": "GENERAL CONCEPT",
-                    "details": f"Token ID: {full_text_id}",
+                    "type": "ASSOCIATIVE MEMORY",
+                    "details": f"Command learned (w={best_weight:.1f})",
                 }
-                return sub_action
+                return best_action
 
             # --- PHASE D: RFT DERIVED INFERENCE ---
             # Only activates when Phases A-C have found no match —
@@ -692,6 +699,39 @@ class Learner:
 
         # 1. Episodic encoding
         self.memory.add_chrono(fuzzy_vector, action, reward, text_command)
+
+        # 1.1 GL5: Force command-to-action association in semantic memory
+        # ================================================================
+        # When a human gives a command and the robot executes an action,
+        # immediately create a direct rule in semantic memory (strong association).
+        # This ensures the robot learns commands quickly instead of being "stupid".
+        if text_command and text_command.strip():
+            cmd_id = self.memory.get_or_create_concept_id(text_command.strip().upper())
+
+            # GL5: Learning by reinforcement (operant conditioning)
+            # ====================================================
+            # - reward > 0: ACCIÖN CORRECTA →-premiar (peso positivo)
+            # - reward < 0: ACCIÖN INCORRECTA →castigar (peso negativo)
+            # - guided_mode: reforzar más la asociación guíada
+
+            # Base weight from actual reward (positive=reward, negative=punish)
+            base_weight = reward if reward != 0 else 5.0
+
+            # In guided mode, strengthen the association more (facilitated learning)
+            is_guided = getattr(self, "_guided_this_step", False)
+            if is_guided and base_weight > 0:
+                base_weight = 15.0  # Guided = stronger positive
+            elif is_guided and base_weight <= 0:
+                base_weight = -15.0  # Guided punishment = stronger negative
+
+            self.memory.add_rule(
+                perc_id,
+                action,
+                weight=base_weight,
+                next_perception=None,
+                command_id=cmd_id,
+                memory_type=MEMORY_SEMANTIC,
+            )
 
         # 1.5 GL5: Learn objectives from experience
         # ==========================================
