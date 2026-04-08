@@ -1,48 +1,71 @@
 import random
+import hashlib
 from constants import *
+
 
 class Environment:
     """
     Manages the 2D grid world where the robot lives.
     Handles walls, batteries, and the robot's spatial awareness.
     """
+
     def __init__(self):
         self.grid = [[EMPTY_ID for _ in range(GRID_W)] for _ in range(GRID_H)]
+        self.maze_id = None
         self.reset()
 
     def reset(self):
         """
-        Clears the grid and regenerates a new random configuration of walls 
+        Clears the grid and regenerates a new random configuration of walls
         and batteries for the next experimental cycle.
+
+        GL5: Generates a unique maze_id based on the wall/battery configuration
+        to enable multi-maze learning.
         """
         # Reset to empty state
         self.grid = [[EMPTY_ID for _ in range(GRID_W)] for _ in range(GRID_H)]
-        
+
         # 1. Place Walls: Static obstacles that the robot cannot pass.
+        wall_positions = []
         for _ in range(15):
-            wx, wy = random.randint(0, GRID_W-1), random.randint(0, GRID_H-1)
+            wx, wy = random.randint(0, GRID_W - 1), random.randint(0, GRID_H - 1)
             # Avoid placing walls at the robot's starting position (center)
-            if (wx, wy) != (GRID_W//2, GRID_H//2):
+            if (wx, wy) != (GRID_W // 2, GRID_H // 2):
                 self.grid[wy][wx] = WALL_ID
-        
+                wall_positions.append((wx, wy))
+
+        # GL5: Place one mirror on a random wall (for self-recognition test)
+        # The mirror acts as a reflective surface the robot can "see" itself in
+        if wall_positions:
+            mirror_pos = random.choice(wall_positions)
+            mx, my = mirror_pos
+            self.grid[my][mx] = MIRROR_ID
+
         # 2. Place Batteries: Resource entities that provide +10 reinforcement points.
         target_batteries = random.randint(1, 3)
         placed = 0
+        battery_positions = []
         while placed < target_batteries:
-            bx, by = random.randint(0, GRID_W-1), random.randint(0, GRID_H-1)
+            bx, by = random.randint(0, GRID_W - 1), random.randint(0, GRID_H - 1)
             # Ensure placement on an empty tile and away from the starting position
-            if self.grid[by][bx] == EMPTY_ID and (bx, by) != (GRID_W//2, GRID_H//2):
+            if self.grid[by][bx] == EMPTY_ID and (bx, by) != (GRID_W // 2, GRID_H // 2):
                 self.grid[by][bx] = BATTERY_ID
                 placed += 1
+                battery_positions.append((bx, by))
+
+        # Generate unique maze_id based on configuration
+        # This enables the agent to store separate maps for different mazes
+        config_str = f"{sorted(wall_positions)}{sorted(battery_positions)}"
+        self.maze_id = hashlib.md5(config_str.encode()).hexdigest()[:8]
 
     def get_at(self, x, y):
         """
-        Safely returns the ID of the object at (x, y). 
+        Safely returns the ID of the object at (x, y).
         Returns WALL_ID if the coordinates are out of bounds.
         """
         if 0 <= x < GRID_W and 0 <= y < GRID_H:
             return self.grid[y][x]
-        return WALL_ID # Out of bounds is treated as an impenetrable wall
+        return WALL_ID  # Out of bounds is treated as an impenetrable wall
 
     def remove_at(self, x, y):
         """Sets the cell at (x, y) to EMPTY_ID. Used when a battery is consumed."""
