@@ -8,42 +8,56 @@ from robot import Robot
 from memory import Memory
 from learner import Learner
 import graphics
-from graphics import Button, TextBox, create_robot_icon, create_battery_icon, create_wall_icon
+from graphics import (
+    Button,
+    TextBox,
+    create_robot_icon,
+    create_battery_icon,
+    create_wall_icon,
+    create_mirror_icon,
+)
+
 
 class GeneralLearnerApp:
     """
     Main Application class for the General Learner 4.
     Orchestrates the PyGame loop, UI events, and the simulation state.
     """
+
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         pygame.display.set_caption("General Learner 4 - Cognitive Simulation")
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont('Arial', 12)
-        
+        self.font = pygame.font.SysFont("Arial", 12)
+
         # Initialize Core Components
         self.env = Environment()
         self.memory = Memory()
         self.robot = Robot(self.env)
-        self.learner = Learner(self.memory)
-        
+        self.learner = Learner(self.memory, self.env)
+
         self.autonomous = False
         self.guide_mode = False
-        self.guide_path = [] # Visualization of the path being taught
+        self.guide_path = []  # Visualization of the path being taught
         self.total_steps = 0
-        self.stats_history = [] # Stores (step, score, rules_count)
-        self.show_network = False 
-        self.view_mode = 'SITUATIONAL' # 'SITUATIONAL' or 'TERRITORY'
+        self.stats_history = []  # Stores (step, score, rules_count)
+        self.show_network = False
+        self.view_mode = "SITUATIONAL"  # 'SITUATIONAL' or 'TERRITORY'
 
         # Load Graphical Assets (Procedural Bitmaps)
         self.robot_img = create_robot_icon(CELL_SIZE)
         self.battery_img = create_battery_icon(CELL_SIZE)
         self.wall_img = create_wall_icon(CELL_SIZE)
+        self.mirror_img = create_mirror_icon(CELL_SIZE)
 
         self.last_action_reward = 0
         self.timer = 0
-        self.step_delay = 1500 # Even slower for maximum control (1.5 seconds)
+        self.step_delay = 500  # Autonomous mode step delay in ms
+
+        # Dream/sleep cooldown to prevent overload
+        self._dream_cooldown = 0
+        self._in_dream = False
 
         # UI Layout Setup
         self._init_buttons()
@@ -53,48 +67,62 @@ class GeneralLearnerApp:
         btn_w = PANEL_WIDTH - 40
         y_off = 20
         step_y = BTN_HEIGHT + BTN_MARGIN
-        
+
         # Behavior Control
         self.btn_auto = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "AUTONOMOUS", GRAY)
         y_off += step_y
         self.btn_comm = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "COMMAND", GRAY)
         y_off += step_y
-        
+
         # Direct Command Interface
         self.txt_box = TextBox(btn_x, y_off, btn_w, 25)
         y_off += 30
         self.btn_do = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "DO ACTION", GRAY)
         y_off += step_y
-        
+
         # Manual Reinforcement
-        self.btn_plus = Button(btn_x, y_off, btn_w//2 - 5, BTN_HEIGHT, "+", GREEN)
-        self.btn_minus = Button(btn_x + btn_w//2 + 5, y_off, btn_w//2 - 5, BTN_HEIGHT, "-", RED)
+        self.btn_plus = Button(btn_x, y_off, btn_w // 2 - 5, BTN_HEIGHT, "+", GREEN)
+        self.btn_minus = Button(
+            btn_x + btn_w // 2 + 5, y_off, btn_w // 2 - 5, BTN_HEIGHT, "-", RED
+        )
         y_off += step_y
-        
+
         # Knowledge Management
         self.btn_sleep = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "DREAM / SLEEP", BLUE)
         y_off += step_y
         self.btn_clear = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "CLEAR MEMORY", RED)
         y_off += step_y
-        
+
         # Vicarious Learning
         self.btn_guide = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "GUIDE MODE", GRAY)
         y_off += step_y
-        
+
         # Control & Reporting Buttons
-        self.btn_network = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "SHOW NETWORK", PURPLE)
+        self.btn_network = Button(
+            btn_x, y_off, btn_w, BTN_HEIGHT, "SHOW NETWORK", PURPLE
+        )
         y_off += step_y
-        self.btn_territory = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "TERRITORY MAP", BLUE)
+        self.btn_territory = Button(
+            btn_x, y_off, btn_w, BTN_HEIGHT, "TERRITORY MAP", BLUE
+        )
         y_off += step_y
         self.btn_bayes = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "TOGGLE BAYES", CYAN)
         y_off += step_y
         self.btn_pov = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "TOGGLE POV", CYAN)
         y_off += step_y
-        self.btn_inform = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "EXPORT REPORT", YELLOW)
+        self.btn_inform = Button(
+            btn_x, y_off, btn_w, BTN_HEIGHT, "EXPORT REPORT", YELLOW
+        )
         y_off += step_y
-        self.btn_inferences = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "INFERENCES", ORANGE)
+        self.btn_inferences = Button(
+            btn_x, y_off, btn_w, BTN_HEIGHT, "INFERENCES", ORANGE
+        )
         y_off += step_y
         self.btn_new_maze = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "NEW MAZE", RED)
+        y_off += step_y
+        self.btn_reset_stagnation = Button(
+            btn_x, y_off, btn_w, BTN_HEIGHT, "RESET STAGNATION", PINK
+        )
 
         # UI States
         self.show_pov = False
@@ -131,19 +159,20 @@ class GeneralLearnerApp:
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            
+
             # Textbox interaction: only execute step IF 'cmd' is True (when user presses Enter)
             cmd = self.txt_box.handle_event(event)
             if cmd is True:
                 self.execute_step()
-            
+
             if event.type == pygame.MOUSEBUTTONDOWN:
                 pos = event.pos
-                
+
                 # Check sidebar button clicks
                 if self.btn_auto.is_clicked(pos):
                     self.autonomous = not self.autonomous
-                    if self.autonomous: self.guide_mode = False # Mutually exclusive
+                    if self.autonomous:
+                        self.guide_mode = False  # Mutually exclusive
                 elif self.btn_comm.is_clicked(pos):
                     self.autonomous = False
                     self.guide_mode = False
@@ -161,16 +190,18 @@ class GeneralLearnerApp:
                     print("Memory wiped.")
                 elif self.btn_guide.is_clicked(pos):
                     self.guide_mode = not self.guide_mode
-                    if self.guide_mode: self.autonomous = False # Stop auto logic
-                    if not self.guide_mode: self.guide_path = []
+                    if self.guide_mode:
+                        self.autonomous = False  # Stop auto logic
+                    if not self.guide_mode:
+                        self.guide_path = []
                 elif self.btn_inform.is_clicked(pos):
                     self.export_report()
                 elif self.btn_network.is_clicked(pos):
                     self.show_network = not self.show_network
-                    self.view_mode = 'SITUATIONAL'
+                    self.view_mode = "SITUATIONAL"
                 elif self.btn_territory.is_clicked(pos):
                     self.show_network = True
-                    self.view_mode = 'TERRITORY'
+                    self.view_mode = "TERRITORY"
                 if self.btn_bayes.is_clicked(event.pos):
                     self.learner.bayesian = not self.learner.bayesian
                 if self.btn_pov.is_clicked(event.pos):
@@ -185,34 +216,42 @@ class GeneralLearnerApp:
                     self.learner.action_history.clear()
                     self.learner.active_plan.clear()
                     print("Maze regenerated and robot position reset.")
+                if self.btn_reset_stagnation.is_clicked(event.pos):
+                    self.learner.stagnant = False
+                    self.learner.pos_history.clear()
+                    self.learner.action_history.clear()
+                    self.learner.active_plan.clear()
+                    self.learner.agenda.clear()
+                    print("Stagnation reset! Robot is free to move again.")
 
                 # Grid interaction (Guide Mode)
-                if pos[0] < CANVAS_WIDTH:
-                    gx, gy = pos[0]//CELL_SIZE, pos[1]//CELL_SIZE
-                    if self.guide_mode:
-                        self.handle_guide_click(gx, gy)
+                if pos[0] < CANVAS_WIDTH and pos[1] < CANVAS_HEIGHT:
+                    gx, gy = pos[0] // CELL_SIZE, pos[1] // CELL_SIZE
+                    if 0 <= gx < GRID_W and 0 <= gy < GRID_H:
+                        if self.guide_mode:
+                            self.handle_guide_click(gx, gy)
 
     def execute_step(self, forced_action=None):
         """Triggers the robot to perform a single step/decision cycle."""
-        text_cmd = self.txt_box.text if self.txt_box.text else None
-        
+        text_cmd = self.txt_box.text.strip() if self.txt_box.text else None
+
         state = self.robot.get_state()
-        
+
         # Determine action: either the user-forced one (Guided) or the learner's act
         if forced_action is not None:
             action = forced_action
         else:
             action = self.learner.act(self.robot, text_command=text_cmd)
-            
+
         reward = self.robot.step(action)
-        
+
         # 3. USE THE NEW AGNOSTIC LEARNING FLOW
         self.learner.learn(self.robot, action, reward, text_command=text_cmd)
-        
+
         self.last_action_reward = reward
         self.guide_path = []
         self.total_steps += 1
-        
+
         # Synchronize stats for reports
         if self.total_steps % 5 == 0:
             self.capture_stats()
@@ -220,38 +259,49 @@ class GeneralLearnerApp:
     def capture_stats(self):
         """Records current metrics for the reporting dashboard."""
         rules_count = len(self.memory.get_rules())
-        self.stats_history.append({
-            'step': self.total_steps,
-            'score': self.robot.score,
-            'rules': rules_count
-        })
+        self.stats_history.append(
+            {"step": self.total_steps, "score": self.robot.score, "rules": rules_count}
+        )
 
     def apply_manual_reinforcement(self, amount):
         """Forces reinforcement for the last taken action using conceptual IDs."""
         history = self.memory.get_all_chrono()
         if history:
             last = history[-1]
-            perc_id = json.dumps(last['perception'])
+            perc_id = json.dumps(last["perception"])
             cmd_id = None
-            if last.get('command_text'):
-                cmd_id = self.memory.get_or_create_concept_id(last['command_text'].upper())
-            
-            self.memory.add_rule(perc_id, last['action'], weight=amount, command_id=cmd_id)
+            if last.get("command_text"):
+                cmd_id = self.memory.get_or_create_concept_id(
+                    last["command_text"].upper()
+                )
+
+            self.memory.add_rule(
+                perc_id, last["action"], weight=amount, command_id=cmd_id
+            )
             print(f"Manual reinforcement applied: {amount}")
 
     def dream(self):
         """Triggers the Sleep Cycle for rules consolidation."""
+        if self._in_dream:
+            print("Dream already in progress, skipping...")
+            return
+
+        self._in_dream = True
+
         # 1. Consolidate new rules
         count = self.learner.sleep_cycle()
-        
+
         # 2. Identify spatial landmarks to protect them from forgetting
         nodes, _ = self.learner.get_situational_graph()
-        
+
         # 3. Apply biological forgetting (Differential Decay)
         self.memory.decay_rules()
-        
+
         self.memory.clear_chrono()
         print(f"Dream complete: Consolidated {count} rules/transitions.")
+
+        self._in_dream = False
+        self._dream_cooldown = 60
 
     def export_db(self):
         """Exports the semantic memory (Rules) to a human-readable text file."""
@@ -259,27 +309,140 @@ class GeneralLearnerApp:
             f.write("--- LEARNED COGNITIVE RULES ---\n")
             rules = self.memory.get_rules()
             for r in rules:
-                trans = str(r['next_perception']) if r['next_perception'] else "None"
-                f.write(f"ID: {r['id']} | Action: {r['target_action']} | Success: {r['weight']} | Transition: {trans}...\n")
+                trans = str(r["next_perception"]) if r["next_perception"] else "None"
+                f.write(
+                    f"ID: {r['id']} | Action: {r['target_action']} | Success: {r['weight']} | Transition: {trans}...\n"
+                )
         print("Knowledge exported to db_export.txt")
 
     def export_report(self):
-        """Generates a text summary of the current learning performance."""
+        """Generates a comprehensive research-quality report of the learning performance."""
+        import datetime
+        from constants import MEMORY_EPISODIC, MEMORY_SEMANTIC, MEMORY_DERIVED
+
+        rules = self.memory.get_rules()
+
+        # Memory breakdown by type
+        episodic = [r for r in rules if r.get("memory_type") == MEMORY_EPISODIC]
+        semantic = [r for r in rules if r.get("memory_type") == MEMORY_SEMANTIC]
+        derived = [r for r in rules if r.get("memory_type") == MEMORY_DERIVED]
+
+        # Weight statistics
+        weights = [r["weight"] for r in rules]
+        avg_weight = sum(weights) / len(weights) if weights else 0
+        max_weight = max(weights) if weights else 0
+        min_weight = min(weights) if weights else 0
+
+        # Action distribution
+        action_counts = {}
+        for r in rules:
+            a = r["target_action"]
+            action_counts[a] = action_counts.get(a, 0) + 1
+        action_names = {0: "A0", 1: "A1", 2: "A2", 3: "A3"}
+
+        # Learning curve analysis
+        score_data = [s["score"] for s in self.stats_history]
+        rule_data = [s["rules"] for s in self.stats_history]
+
+        # Efficiency metrics
+        if self.total_steps > 0:
+            score_per_step = self.robot.score / self.total_steps
+            rules_per_step = len(rules) / self.total_steps
+        else:
+            score_per_step = 0
+            rules_per_step = 0
+
+        # RFT frames
+        frames = self.memory.get_all_frames()
+        coord_frames = [f for f in frames if f["relation_type"] == "COORD"]
+        opp_frames = [f for f in frames if f["relation_type"] == "OPP"]
+
         with open("behavior_report.txt", "w") as f:
-            f.write("--- COGNITIVE BEHAVIOR REPORT ---\n")
-            f.write(f"Total Steps Simulated: {self.total_steps}\n")
-            f.write(f"Final Score: {self.robot.score}\n")
-            f.write(f"Knowledge Base Size: {len(self.memory.get_rules())} rules\n")
-            f.write("-" * 34 + "\n")
+            f.write("=" * 60 + "\n")
+            f.write("       GENERAL LEARNER 4/5 - RESEARCH REPORT\n")
+            f.write("=" * 60 + "\n")
+            f.write(
+                f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            )
+            f.write(f"Session Duration: {self.total_steps} steps\n")
+            f.write("-" * 60 + "\n")
+
+            f.write("\n### EXECUTIVE SUMMARY\n")
+            f.write(f"  Total Steps:         {self.total_steps}\n")
+            f.write(f"  Final Score:        {self.robot.score}\n")
+            f.write(f"  Total Rules:         {len(rules)}\n")
+            f.write(f"  Battery Found:      {self.robot.score // 10} units\n")
+
+            f.write("\n### MEMORY HIERARCHY\n")
+            f.write(
+                f"  Episodic (short-term):  {len(episodic):4d} rules  (fast decay)\n"
+            )
+            f.write(
+                f"  Semantic (long-term):   {len(semantic):4d} rules  (slow decay)\n"
+            )
+            f.write(f"  Derived (RFT-inferred): {len(derived):4d} rules  (GL5)\n")
+
+            f.write("\n### RULE STATISTICS\n")
+            f.write(f"  Avg Weight:    {avg_weight:+.2f}\n")
+            f.write(f"  Max Weight:    {max_weight:+.2f}\n")
+            f.write(f"  Min Weight:    {min_weight:+.2f}\n")
+
+            f.write("\n### ACTION DISTRIBUTION\n")
+            for act, count in sorted(action_counts.items()):
+                name = action_names.get(act, f"ACT_{act}")
+                pct = (count / len(rules) * 100) if rules else 0
+                f.write(f"  {name:8s}: {count:4d} ({pct:5.1f}%)\n")
+
+            f.write("\n### LEARNING EFFICIENCY\n")
+            f.write(f"  Score/Step:    {score_per_step:.4f}\n")
+            f.write(f"  Rules/Step:    {rules_per_step:.4f}\n")
+            f.write(f"  Exploration:   {self.total_steps - self.robot.score} steps\n")
+
+            f.write("\n### RFT NETWORK (GL5)\n")
+            f.write(f"  Total Frames:      {len(frames)}\n")
+            f.write(f"  Coordination:      {len(coord_frames)}\n")
+            f.write(f"  Opposition:        {len(opp_frames)}\n")
+
+            f.write("\n### HOMEOSTASIS\n")
+            f.write(f"  Final Hunger:      {self.robot.hunger}\n")
+            f.write(f"  Final Tiredness:   {self.robot.tiredness}\n")
+            f.write(
+                f"  Bayesian Mode:     {'ENABLED' if self.learner.bayesian else 'DISABLED'}\n"
+            )
+            f.write(
+                f"  Autonomous Mode:   {'ACTIVE' if self.autonomous else 'INACTIVE'}\n"
+            )
+            f.write(
+                f"  Guide Mode:        {'ACTIVE' if self.guide_mode else 'INACTIVE'}\n"
+            )
+
+            f.write("\n### GROWTH TRAJECTORY\n")
+            if len(score_data) >= 2:
+                f.write(f"  Initial Score: {score_data[0]}\n")
+                f.write(f"  Final Score:   {score_data[-1]}\n")
+                f.write(f"  Initial Rules: {rule_data[0]}\n")
+                f.write(f"  Peak Rules:    {max(rule_data)}\n")
+                f.write(f"  Final Rules:   {rule_data[-1]}\n")
+
+            f.write("\n### TIME SERIES (Step | Score | Rules)\n")
+            f.write("-" * 40 + "\n")
             if self.stats_history:
-                f.write("Growth History (Step | Score | Rules):\n")
-                for s in self.stats_history:
-                    f.write(f"Step {s['step']:04d} | Score {s['score']:04d} | Knowledge {s['rules']:03d}\n")
+                # Show sampled data points (every 10th)
+                for i, s in enumerate(self.stats_history):
+                    if i % 10 == 0:
+                        f.write(
+                            f"  {s['step']:04d} | {s['score']:04d} | {s['rules']:03d}\n"
+                        )
+
+            f.write("\n" + "=" * 60 + "\n")
+            f.write("                    END OF REPORT\n")
+            f.write("=" * 60 + "\n")
+
         print("Performance report exported to behavior_report.txt")
 
     def handle_guide_click(self, gx, gy):
         """
-        Processes a grid click during Guide Mode. 
+        Processes a grid click during Guide Mode.
         FORCED: Immediately moves the robot and associates text.
         """
         target_action = self.robot.get_action_to(gx, gy)
@@ -295,50 +458,66 @@ class GeneralLearnerApp:
         self.btn_auto.color = LIGHT_ORANGE if self.autonomous else GRAY
         self.btn_comm.color = ORANGE if not self.autonomous else GRAY
         self.btn_guide.color = LIGHT_ORANGE if self.guide_mode else GRAY
+        self.btn_bayes.text = "BAYES: ON" if self.learner.bayesian else "BAYES: OFF"
+        self.btn_bayes.color = LIGHT_ORANGE if self.learner.bayesian else GRAY
 
         if self.autonomous:
             self.timer += dt
             if self.timer >= self.step_delay:
                 self.execute_step()
                 self.timer = 0
-        
+
+        # Decrement dream cooldown
+        if self._dream_cooldown > 0:
+            self._dream_cooldown -= 1
+
         # Homeostasis check: If tired, robot must sleep (dream phase)
-        if self.robot.tiredness >= TIREDNESS_MAX:
-             print("Homeostasis Alert: Robot is exhausted. Triggering automatic Sleep phase...")
-             self.dream()
-             self.robot.tiredness = 0
-             # Note: We NO LONGER reset the environment or robot position here.
-             # This allows the user to see the robot waking up exactly where it was.
+        if self.robot.tiredness >= TIREDNESS_MAX and self._dream_cooldown == 0:
+            print(
+                "Homeostasis Alert: Robot is exhausted. Triggering automatic Sleep phase..."
+            )
+            self.dream()
+            self.robot.tiredness = 0
 
     def draw(self):
         """Renders the world and the sidebar HUD."""
         self.screen.fill(BLACK)
-        
+
         # 1. Render World Grid & Objects
         for y in range(GRID_H):
             for x in range(GRID_W):
-                rect = pygame.Rect(x*CELL_SIZE, y*CELL_SIZE, CELL_SIZE, CELL_SIZE)
+                rect = pygame.Rect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE)
                 pygame.draw.rect(self.screen, (30, 35, 45), rect, 1)
-                
+
                 # Visual guide feedback
                 if (x, y) in self.guide_path:
-                    overlay = pygame.Surface((CELL_SIZE-2, CELL_SIZE-2))
+                    overlay = pygame.Surface((CELL_SIZE - 2, CELL_SIZE - 2))
                     overlay.set_alpha(120)
                     overlay.fill(PINK)
-                    self.screen.blit(overlay, (x*CELL_SIZE+1, y*CELL_SIZE+1))
+                    self.screen.blit(overlay, (x * CELL_SIZE + 1, y * CELL_SIZE + 1))
 
                 val = self.env.grid[y][x]
-                if val == WALL_ID: self.screen.blit(self.wall_img, rect)
-                elif val == BATTERY_ID: self.screen.blit(self.battery_img, rect)
+                if val == WALL_ID:
+                    self.screen.blit(self.wall_img, rect)
+                elif val == BATTERY_ID:
+                    self.screen.blit(self.battery_img, rect)
+                elif val == MIRROR_ID:
+                    self.screen.blit(self.mirror_img, rect)
 
         # 2. Render Robot (with rotation based on direction)
-        rob_rect = pygame.Rect(self.robot.x*CELL_SIZE, self.robot.y*CELL_SIZE, CELL_SIZE, CELL_SIZE)
+        rob_rect = pygame.Rect(
+            self.robot.x * CELL_SIZE, self.robot.y * CELL_SIZE, CELL_SIZE, CELL_SIZE
+        )
         rot_deg = {DIR_N: 0, DIR_E: -90, DIR_S: 180, DIR_W: 90}
-        rotated_rob = pygame.transform.rotate(self.robot_img, rot_deg[self.robot.direction])
+        rotated_rob = pygame.transform.rotate(
+            self.robot_img, rot_deg[self.robot.direction]
+        )
         self.screen.blit(rotated_rob, rob_rect)
 
         # 3. Sidebar Surface
-        pygame.draw.rect(self.screen, LIGHT_GRAY, (CANVAS_WIDTH, 0, PANEL_WIDTH, WINDOW_HEIGHT))
+        pygame.draw.rect(
+            self.screen, LIGHT_GRAY, (CANVAS_WIDTH, 0, PANEL_WIDTH, WINDOW_HEIGHT)
+        )
         self.btn_auto.draw(self.screen)
         self.btn_comm.draw(self.screen)
         self.txt_box.draw(self.screen)
@@ -355,31 +534,46 @@ class GeneralLearnerApp:
         self.btn_pov.draw(self.screen)
         self.btn_inferences.draw(self.screen)
         self.btn_new_maze.draw(self.screen)
-        
+        self.btn_reset_stagnation.draw(self.screen)
+
         # 3. Cognitive Dashboard
         self.draw_reports()
 
-        # 4. POV (3D Raycasting)
+        # 4. POV (3D Raycasting) - Positioned to the right of cognitive performance
         if self.show_pov:
-            # Positioned closer to the Report panel (next to it)
-            rep_x_right = CANVAS_WIDTH + PANEL_WIDTH + 20 + REPORT_WIDTH
-            pov_rect = pygame.Rect(rep_x_right + 10, 150, POV_WIDTH, POV_HEIGHT)
-            graphics.draw_raycast_view(self.screen, pov_rect, self.robot, self.env)
- 
+            rep_x = CANVAS_WIDTH + PANEL_WIDTH + 10
+            rep_w = REPORT_WIDTH - 30
+            pov_rect = pygame.Rect(rep_x + rep_w + 10, 60, POV_WIDTH, POV_HEIGHT)
+            graphics.draw_raycast_view(
+                self.screen, pov_rect, self.robot, self.env, self.learner
+            )
+
         # 4. HUD Stats & Agenda
         bayes_status = "ENABLED" if self.learner.bayesian else "DISABLED"
-        stats = f"Score: {self.robot.score}  Hunger: {self.robot.hunger}  BAYES: {bayes_status}"
+        auto_status = "AUTO" if self.autonomous else "MANUAL"
+        guide_status = "GUIDE" if self.guide_mode else "FREE"
+        frames = self.memory.get_all_frames()
+        rft_count = len(frames)
+        rules = self.memory.get_rules()
+        rules_count = len(rules)
+        stats = f"Score: {self.robot.score} | Rules: {rules_count} | BAYES: {bayes_status} | {auto_status} | {guide_status} | RFT: {rft_count}"
         stat_surf = self.font.render(stats, True, BLACK)
         self.screen.blit(stat_surf, (CANVAS_WIDTH + 10, WINDOW_HEIGHT - 70))
-        
+
         # VISUOSPATIAL AGENDA (Mental Landmarks)
         agenda_title = self.font.render("VISUOSPATIAL AGENDA:", True, DARK_GRAY)
         self.screen.blit(agenda_title, (CANVAS_WIDTH + 10, WINDOW_HEIGHT - 50))
-        
+
         if self.learner.agenda:
             for i, landmark in enumerate(self.learner.agenda[:5]):
-                graphics.draw_mini_perception(self.screen, CANVAS_WIDTH + 10 + i*35, WINDOW_HEIGHT - 35, 30, landmark)
-        
+                graphics.draw_mini_perception(
+                    self.screen,
+                    CANVAS_WIDTH + 10 + i * 35,
+                    WINDOW_HEIGHT - 35,
+                    30,
+                    landmark,
+                )
+
         if self.learner.active_plan:
             plan_text = f"ACTIVE PLAN: [{len(self.learner.active_plan)} steps]"
             plan_surf = self.font.render(plan_text, True, BLUE)
@@ -387,60 +581,88 @@ class GeneralLearnerApp:
 
         # 5. Inferences Sub-Window (Below 2D World)
         if self.show_inferences:
-            inf_rect = pygame.Rect(10, CANVAS_HEIGHT + 15, CANVAS_WIDTH - 20, 150)
-            graphics.draw_inferences_window(self.screen, inf_rect, self.learner)
+            inf_rect = pygame.Rect(10, CANVAS_HEIGHT + 15, CANVAS_WIDTH - 20, 250)
+            graphics.draw_inferences_window(
+                self.screen, inf_rect, self.learner, self.robot
+            )
 
         pygame.display.flip()
 
     def draw_reports(self):
         """Renders graphical charts or situational network to the right panel."""
-        rep_x = CANVAS_WIDTH + PANEL_WIDTH + 20
-        rep_w = REPORT_WIDTH - 40
-        
+        # Position closer to sidebar
+        rep_x = CANVAS_WIDTH + PANEL_WIDTH + 10
+        rep_w = REPORT_WIDTH - 30
+
         if self.show_network:
             rep_rect = pygame.Rect(rep_x, 60, rep_w, 450)
-            if self.view_mode == 'SITUATIONAL':
+            if self.view_mode == "SITUATIONAL":
                 nodes, edges = self.learner.get_situational_graph()
-                header_surf = pygame.font.SysFont('Arial', 20, bold=True).render("SITUATIONAL WORLD MAP", True, PURPLE)
+                header_surf = pygame.font.SysFont("Arial", 20, bold=True).render(
+                    "SITUATIONAL WORLD MAP", True, PURPLE
+                )
                 self.screen.blit(header_surf, (rep_x, 20))
-                graphics.draw_situational_network(self.screen, rep_rect, nodes, edges, self.memory)
+                graphics.draw_situational_network(
+                    self.screen, rep_rect, nodes, edges, self.memory
+                )
             else:
                 territory = self.memory.get_territory()
-                header_surf = pygame.font.SysFont('Arial', 20, bold=True).render("GLOBAL TERRITORY MAP", True, BLUE)
+                header_surf = pygame.font.SysFont("Arial", 20, bold=True).render(
+                    "GLOBAL TERRITORY MAP", True, BLUE
+                )
                 self.screen.blit(header_surf, (rep_x, 20))
                 graphics.draw_territory_map(self.screen, rep_rect, territory)
             return
 
         # Header
-        header_surf = pygame.font.SysFont('Arial', 20, bold=True).render("COGNITIVE PERFORMANCE", True, CYAN)
+        header_surf = pygame.font.SysFont("Arial", 20, bold=True).render(
+            "COGNITIVE PERFORMANCE", True, CYAN
+        )
         self.screen.blit(header_surf, (rep_x, 20))
 
         if not self.stats_history:
-            msg = self.font.render("Simulating... Waiting for data points.", True, DARK_GRAY)
+            msg = self.font.render(
+                "Simulating... Waiting for data points.", True, DARK_GRAY
+            )
             self.screen.blit(msg, (rep_x, 60))
             return
 
         # Score Chart (Goals Achieved)
         chart_h = 180
-        score_data = [s['score'] for s in self.stats_history]
+        score_data = [s["score"] for s in self.stats_history]
         score_rect = pygame.Rect(rep_x, 60, rep_w, chart_h)
-        graphics.draw_scaled_plot(self.screen, score_rect, score_data, GREEN, "GOALS ACHIEVED (Score Trend)", "S")
+        graphics.draw_scaled_plot(
+            self.screen,
+            score_rect,
+            score_data,
+            GREEN,
+            "GOALS ACHIEVED (Score Trend)",
+            "S",
+        )
 
         # Knowledge Chart (Rules Learned)
-        knowledge_data = [s['rules'] for s in self.stats_history]
+        knowledge_data = [s["rules"] for s in self.stats_history]
         rules_rect = pygame.Rect(rep_x, 60 + chart_h + 30, rep_w, chart_h)
-        graphics.draw_scaled_plot(self.screen, rules_rect, knowledge_data, PURPLE, "KNOWLEDGE BASE (Semantic Rules)", "R")
+        graphics.draw_scaled_plot(
+            self.screen,
+            rules_rect,
+            knowledge_data,
+            PURPLE,
+            "KNOWLEDGE BASE (Semantic Rules)",
+            "R",
+        )
 
         # Session Insights
         insight_y = 60 + (chart_h + 30) * 2
         insights = [
-            f"Learning Efficiency: {knowledge_data[-1] / (self.total_steps+1):.2f} rules/step",
-            f"Average Reward: {score_data[-1] / (self.total_steps+1):.2f} pts/step",
-            f"Total Exploratory Steps: {self.total_steps}"
+            f"Learning Efficiency: {knowledge_data[-1] / (self.total_steps + 1):.2f} rules/step",
+            f"Average Reward: {score_data[-1] / (self.total_steps + 1):.2f} pts/step",
+            f"Total Exploratory Steps: {self.total_steps}",
         ]
         for i, text in enumerate(insights):
             surf = self.font.render(text, True, (180, 180, 180))
-            self.screen.blit(surf, (rep_x, insight_y + i*20))
+            self.screen.blit(surf, (rep_x, insight_y + i * 20))
+
 
 if __name__ == "__main__":
     app = GeneralLearnerApp()
