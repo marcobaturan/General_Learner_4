@@ -481,6 +481,7 @@ def draw_raycast_view(
             brightness = int(brightness * 0.7)  # Side-shading
 
         # SURFACES: Apply brick texture to walls
+        wall_brightness = brightness
         # Texture coordinate based on wall position and side
         if hit_obj == WALL_ID:
             # Calculate texture coordinate
@@ -492,9 +493,9 @@ def draw_raycast_view(
                 tex_coord = int((rx - int(rx)) * 256) % 256
             # Apply texture variation
             tex_brightness = _brick_texture[tex_coord]
-            brightness = int(brightness * tex_brightness / 150)
+            wall_brightness = max(0, min(255, int(brightness * tex_brightness / 150)))
 
-        color = (brightness, brightness, brightness)
+        color = (wall_brightness, wall_brightness, wall_brightness)
         if hit_obj == BATTERY_ID:
             color = (0, brightness, 0)  # Green battery pillars
         elif hit_obj == MIRROR_ID:
@@ -513,6 +514,11 @@ def draw_raycast_view(
             else:
                 other_color = (0, brightness // 2, brightness)  # Blue for bot2 viewing
             color = other_color
+
+        # Make sure color is valid RGB tuple
+        if not isinstance(color, tuple) or len(color) != 3:
+            color = (brightness, brightness, brightness)
+        color = tuple(max(0, min(255, c)) for c in color)
 
         # Draw filled rectangle for the column
         pygame.draw.rect(
