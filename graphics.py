@@ -366,14 +366,31 @@ def draw_raycast_view(
 
     # SURFACES: Generate procedural brick texture lookup
     # Creates a 256-entry lookup table for brick color variation
+    # Improved: Real brick pattern with horizontal mortar lines
     _brick_texture = []
     for i in range(256):
-        # Base gray + brick pattern variation
-        base = 100 + (i % 32) * 3  # Varies every 32 pixels
-        # Add mortar lines (darker every 16 pixels)
-        if i % 16 < 2:
-            base -= 40  # Dark mortar
-        _brick_texture.append(base)
+        # Brick height = 8 pixels, mortar every 8 pixels (darker)
+        y = i % 16  # Position within brick row (16 pixels = 2 bricks of 8)
+
+        if y < 2:
+            # Mortar line (dark)
+            base = 60
+        else:
+            # Brick surface with variation
+            brick_row = (i // 16) % 4  # Every 4 rows, offset pattern changes
+            brick_offset = i % 8  # Within brick (8 pixels)
+
+            if brick_row % 2 == 0:
+                # Normal row
+                base = 120 + brick_offset * 2
+            else:
+                # Offset row (staggered bricks)
+                base = 120 + ((brick_offset + 4) % 8) * 2
+
+            # Add subtle variation
+            base += (i % 5) * 3
+
+        _brick_texture.append(max(40, min(180, base)))
 
     pygame.draw.rect(screen, BLACK, rect)  # Ceiling/Background
 
