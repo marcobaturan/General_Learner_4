@@ -368,10 +368,9 @@ def draw_raycast_view(
     # SURFACES: Load Doom textures from assets folder
     _doom_textures = []
     try:
+        assets_path = os.path.join(os.path.dirname(__file__), "assets")
         for tex_num in range(1, 6):
-            tex_path = os.path.join(
-                os.path.dirname(__file__), "..", "assets", f"{tex_num}.png"
-            )
+            tex_path = os.path.join(assets_path, f"{tex_num}.png")
             tex = pygame.image.load(tex_path)
             # Store as list of color rows for fast lookup
             tex_data = []
