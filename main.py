@@ -754,7 +754,9 @@ class GeneralLearnerApp:
             rep_x = CANVAS_WIDTH + PANEL_WIDTH + 10
             rep_w = REPORT_WIDTH - 30
             pov_rect = pygame.Rect(rep_x + rep_w + 10, 60, POV_WIDTH, POV_HEIGHT)
-            graphics.draw_raycast_view(
+            from raycaster import draw_raycast_view
+
+            draw_raycast_view(
                 self.screen,
                 pov_rect,
                 self.robot,
