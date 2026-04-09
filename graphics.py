@@ -6,6 +6,7 @@ from constants import *
 _pygame_init = hasattr(pygame, "init")
 
 # SURFACES: Load Doom textures ONCE at module load (not every frame)
+# Disabled for performance - textures are slow to load and not used
 _doom_textures = None
 _default_tex_index = 0
 
@@ -13,33 +14,9 @@ _default_tex_index = 0
 def _load_doom_textures():
     """Load Doom wall textures once at startup."""
     global _doom_textures
-    _doom_textures = []
-    try:
-        assets_path = os.path.join(os.path.dirname(__file__), "assets")
-        for tex_num in range(1, 6):
-            tex_path = os.path.join(assets_path, f"{tex_num}.png")
-            tex = pygame.image.load(tex_path)
-            # Store as list of color rows for fast lookup
-            tex_data = []
-            for y in range(tex.get_height()):
-                row = []
-                for x in range(tex.get_width()):
-                    pixel = tex.get_at((x, y))
-                    # Convert to grayscale brightness
-                    brightness = int(
-                        0.299 * pixel[0] + 0.587 * pixel[1] + 0.114 * pixel[2]
-                    )
-                    row.append(brightness)
-                tex_data.append(row)
-            _doom_textures.append(tex_data)
-        print(f"Loaded {_doom_textures.__len__()} Doom textures")
-    except Exception as e:
-        print(f"Could not load Doom textures: {e}")
-        _doom_textures = None
-
-
-# Load textures at module import
-_load_doom_textures()
+    # Disabled - using simple procedural brick pattern instead for performance
+    _doom_textures = None
+    print("Using procedural brick pattern (Doom textures disabled)")
 
 
 def create_robot_icon(size, color=BLUE):
@@ -534,61 +511,38 @@ def draw_raycast_view(
         if hit_side == 1:
             brightness = int(brightness * 0.7)  # Side-shading
 
-        # SURFACES: Apply Doom texture to walls
+        # SURFACES: Apply simple texture pattern to walls
         wall_brightness = brightness
-        # Texture coordinate based on wall position and side
         if hit_obj == WALL_ID:
-            if _doom_textures is not None:
-                # Wolfenstein-style texture coordinate
-                # texture_offset is the position within the wall texture (0-1 range)
-                # Use fractional part of hit position
-                if hit_side == 0:
-                    # Hit vertical wall side - texture Y based on Y position
-                    tex_frac = ry - int(ry)
-                    if cos_a > 0:  # Facing east
-                        tex_offset = tex_frac
-                    else:  # Facing west
-                        tex_offset = 1 - tex_frac
-                else:
-                    # Hit horizontal wall side - texture Y based on X position
-                    tex_frac = rx - int(rx)
-                    if sin_a > 0:  # Facing south
-                        tex_offset = 1 - tex_frac
-                    else:  # Facing north
-                        tex_offset = tex_frac
+            # Simple brick pattern (no external textures needed)
+            # Uses world position to create consistent texture across walls
+            world_x = int(rx)
+            world_y = int(ry)
 
-                # Convert to texture coordinates
-                tex_h = len(_doom_textures[_default_tex_index])
-                tex_w = len(_doom_textures[_default_tex_index][0]) if tex_h > 0 else 256
-                tex_y = int(tex_offset * tex_h) % tex_h
+            # Brick pattern: 2x1 ratio
+            brick_x = world_x % 4
+            brick_y = world_y % 2
 
-                # For each vertical slice, we need varying X
-                # The texture X varies from 0 to tex_w across the wall
-                # We use the ray's position to vary it
-                if hit_side == 0:
-                    tex_x = int(ry * 16) % tex_w
-                else:
-                    tex_x = int(rx * 16) % tex_w
-
-                # Get pixel from texture
-                if tex_y < tex_h and tex_x < tex_w:
-                    tex_val = _doom_textures[_default_tex_index][tex_y][tex_x]
-                else:
-                    tex_val = 128
+            # Horizontal mortar line
+            if world_y % 2 == 0:
+                # Top of brick row - mortar
+                wall_brightness = int(brightness * 0.5)
             else:
-                # Fallback to procedural
-                if hit_side == 0:
-                    tex_x = int((ry - int(ry)) * 64)
-                else:
-                    tex_x = int((rx - int(rx)) * 64)
+                # Brick surface with variation
+                variation = ((world_x * 3 + world_y * 7) % 10) / 20.0
+                wall_brightness = int(brightness * (0.6 + variation))
+        else:
+            # Fallback to procedural
+            if hit_side == 0:
+                tex_x = int((ry - int(ry)) * 64)
+            else:
+                tex_x = int((rx - int(rx)) * 64)
 
-                tex_coord = (tex_x % 64) + (
-                    (int(ry * 8) % 64) if hit_side == 0 else (int(rx * 8) % 64)
-                )
-                tex_coord = tex_coord % 256
-                tex_val = (
-                    _brick_fallback[tex_coord] if "_brick_fallback" in dir() else 128
-                )
+            tex_coord = (tex_x % 64) + (
+                (int(ry * 8) % 64) if hit_side == 0 else (int(rx * 8) % 64)
+            )
+            tex_coord = tex_coord % 256
+            tex_val = _brick_fallback[tex_coord] if "_brick_fallback" in dir() else 128
 
             wall_brightness = max(0, min(255, (brightness * tex_val) // 128))
 
