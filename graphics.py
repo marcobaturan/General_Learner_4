@@ -1,4 +1,5 @@
 import pygame
+import os
 from constants import *
 
 # Check if pygame is initialized (for testing without display)
