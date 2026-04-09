@@ -511,50 +511,13 @@ class GeneralLearnerApp:
         print("Knowledge exported to db_export.txt")
 
     def export_report(self):
-        """Generates a comprehensive research-quality report of the learning performance."""
+        """Generates a comprehensive research-quality report for both bots."""
         import datetime
         from constants import MEMORY_EPISODIC, MEMORY_SEMANTIC, MEMORY_DERIVED
 
-        rules = self.memory.get_rules()
-
-        # Memory breakdown by type
-        episodic = [r for r in rules if r.get("memory_type") == MEMORY_EPISODIC]
-        semantic = [r for r in rules if r.get("memory_type") == MEMORY_SEMANTIC]
-        derived = [r for r in rules if r.get("memory_type") == MEMORY_DERIVED]
-
-        # Weight statistics
-        weights = [r["weight"] for r in rules]
-        avg_weight = sum(weights) / len(weights) if weights else 0
-        max_weight = max(weights) if weights else 0
-        min_weight = min(weights) if weights else 0
-
-        # Action distribution
-        action_counts = {}
-        for r in rules:
-            a = r["target_action"]
-            action_counts[a] = action_counts.get(a, 0) + 1
-        action_names = {0: "A0", 1: "A1", 2: "A2", 3: "A3"}
-
-        # Learning curve analysis
-        score_data = [s["score"] for s in self.stats_history]
-        rule_data = [s["rules"] for s in self.stats_history]
-
-        # Efficiency metrics
-        if self.total_steps > 0:
-            score_per_step = self.robot.score / self.total_steps
-            rules_per_step = len(rules) / self.total_steps
-        else:
-            score_per_step = 0
-            rules_per_step = 0
-
-        # RFT frames
-        frames = self.memory.get_all_frames()
-        coord_frames = [f for f in frames if f["relation_type"] == "COORD"]
-        opp_frames = [f for f in frames if f["relation_type"] == "OPP"]
-
         with open("behavior_report.txt", "w") as f:
             f.write("=" * 60 + "\n")
-            f.write("       GENERAL LEARNER 4/5 - RESEARCH REPORT\n")
+            f.write("       GENERAL LEARNER 5 - DUAL BOT RESEARCH REPORT\n")
             f.write("=" * 60 + "\n")
             f.write(
                 f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -562,72 +525,101 @@ class GeneralLearnerApp:
             f.write(f"Session Duration: {self.total_steps} steps\n")
             f.write("-" * 60 + "\n")
 
-            f.write("\n### EXECUTIVE SUMMARY\n")
-            f.write(f"  Total Steps:         {self.total_steps}\n")
-            f.write(f"  Final Score:        {self.robot.score}\n")
-            f.write(f"  Total Rules:         {len(rules)}\n")
-            f.write(f"  Battery Found:      {self.robot.score // 10} units\n")
+            for bot_id in [1, 2]:
+                memory = self.memory_bot1 if bot_id == 1 else self.memory_bot2
+                learner = self.learner1 if bot_id == 1 else self.learner2
+                robot = self.robot1 if bot_id == 1 else self.robot2
 
-            f.write("\n### MEMORY HIERARCHY\n")
-            f.write(
-                f"  Episodic (short-term):  {len(episodic):4d} rules  (fast decay)\n"
-            )
-            f.write(
-                f"  Semantic (long-term):   {len(semantic):4d} rules  (slow decay)\n"
-            )
-            f.write(f"  Derived (RFT-inferred): {len(derived):4d} rules  (GL5)\n")
+                rules = memory.get_rules()
+                episodic = [r for r in rules if r.get("memory_type") == MEMORY_EPISODIC]
+                semantic = [r for r in rules if r.get("memory_type") == MEMORY_SEMANTIC]
+                derived = [r for r in rules if r.get("memory_type") == MEMORY_DERIVED]
 
-            f.write("\n### RULE STATISTICS\n")
-            f.write(f"  Avg Weight:    {avg_weight:+.2f}\n")
-            f.write(f"  Max Weight:    {max_weight:+.2f}\n")
-            f.write(f"  Min Weight:    {min_weight:+.2f}\n")
+                concepts = memory.conn.execute(
+                    "SELECT id, value FROM conceptual_ids"
+                ).fetchall()
+                try:
+                    derived_cmd_ids = memory.conn.execute(
+                        "SELECT DISTINCT command_id FROM rules WHERE command_id IS NOT NULL"
+                    ).fetchall()
+                    compound_concepts_ids = set(r[0] for r in derived_cmd_ids if r[0])
+                except:
+                    compound_concepts_ids = set()
+                simple_concepts = [
+                    c for c in concepts if c[0] not in compound_concepts_ids
+                ]
+                compound_concepts = [
+                    c for c in concepts if c[0] in compound_concepts_ids
+                ]
 
-            f.write("\n### ACTION DISTRIBUTION\n")
-            for act, count in sorted(action_counts.items()):
-                name = action_names.get(act, f"ACT_{act}")
-                pct = (count / len(rules) * 100) if rules else 0
-                f.write(f"  {name:8s}: {count:4d} ({pct:5.1f}%)\n")
+                frames = memory.get_all_frames()
+                coord_frames = [fr for fr in frames if fr["relation_type"] == "COORD"]
+                opp_frames = [fr for fr in frames if fr["relation_type"] == "OPP"]
 
-            f.write("\n### LEARNING EFFICIENCY\n")
-            f.write(f"  Score/Step:    {score_per_step:.4f}\n")
-            f.write(f"  Rules/Step:    {rules_per_step:.4f}\n")
-            f.write(f"  Exploration:   {self.total_steps - self.robot.score} steps\n")
+                weights = [r["weight"] for r in rules] if rules else [0]
+                avg_weight = sum(weights) / len(weights) if weights else 0
 
-            f.write("\n### RFT NETWORK (GL5)\n")
-            f.write(f"  Total Frames:      {len(frames)}\n")
-            f.write(f"  Coordination:      {len(coord_frames)}\n")
-            f.write(f"  Opposition:        {len(opp_frames)}\n")
+                action_counts = {}
+                for r in rules:
+                    a = r["target_action"]
+                    action_counts[a] = action_counts.get(a, 0) + 1
+                action_names = {0: "FORWARD", 1: "BACKWARD", 2: "LEFT", 3: "RIGHT"}
 
-            f.write("\n### HOMEOSTASIS\n")
-            f.write(f"  Final Hunger:      {self.robot.hunger}\n")
-            f.write(f"  Final Tiredness:   {self.robot.tiredness}\n")
-            f.write(
-                f"  Bayesian Mode:     {'ENABLED' if self.learner.bayesian else 'DISABLED'}\n"
-            )
-            f.write(
-                f"  Autonomous Mode:   {'ACTIVE' if self.autonomous else 'INACTIVE'}\n"
-            )
-            f.write(
-                f"  Guide Mode:        {'ACTIVE' if self.guide_mode else 'INACTIVE'}\n"
-            )
+                f.write(f"\n{'=' * 60}\n")
+                f.write(
+                    f"### BOT {bot_id} REPORT {'(ACTIVE)' if self.active_bot == bot_id else ''}\n"
+                )
+                f.write(f"{'=' * 60}\n")
 
-            f.write("\n### GROWTH TRAJECTORY\n")
-            if len(score_data) >= 2:
-                f.write(f"  Initial Score: {score_data[0]}\n")
-                f.write(f"  Final Score:   {score_data[-1]}\n")
-                f.write(f"  Initial Rules: {rule_data[0]}\n")
-                f.write(f"  Peak Rules:    {max(rule_data)}\n")
-                f.write(f"  Final Rules:   {rule_data[-1]}\n")
+                f.write("\n### EXECUTIVE SUMMARY\n")
+                f.write(f"  Total Steps:         {self.total_steps}\n")
+                f.write(f"  Final Score:        {robot.score}\n")
+                f.write(f"  Batteries Found:     {robot.score // 10}\n")
 
-            f.write("\n### TIME SERIES (Step | Score | Rules)\n")
-            f.write("-" * 40 + "\n")
-            if self.stats_history:
-                # Show sampled data points (every 10th)
-                for i, s in enumerate(self.stats_history):
-                    if i % 10 == 0:
-                        f.write(
-                            f"  {s['step']:04d} | {s['score']:04d} | {s['rules']:03d}\n"
-                        )
+                f.write("\n### RULE STATISTICS\n")
+                f.write(f"  Total Rules:         {len(rules)}\n")
+                f.write(f"  Concrete Rules:     {len(episodic)}\n")
+                f.write(f"  Semantic Rules:     {len(semantic)}\n")
+                f.write(f"  Derived Rules:      {len(derived)}\n")
+                f.write(f"  Avg Weight:         {avg_weight:+.2f}\n")
+                f.write(f"  Max Weight:         {max(weights):+.2f}\n")
+                f.write(f"  Min Weight:         {min(weights):+.2f}\n")
+
+                f.write("\n### CONCEPTS\n")
+                f.write(f"  Total Concepts:     {len(concepts)}\n")
+                f.write(f"  Simple Concepts:    {len(simple_concepts)}\n")
+                f.write(f"  Compound Concepts:  {len(compound_concepts)}\n")
+
+                f.write("\n### ACTION DISTRIBUTION\n")
+                for act, count in sorted(action_counts.items()):
+                    name = action_names.get(act, f"ACT_{act}")
+                    pct = (count / len(rules) * 100) if rules else 0
+                    f.write(f"  {name:10s}: {count:4d} ({pct:5.1f}%)\n")
+
+                f.write("\n### RFT RELATIONSHIPS\n")
+                f.write(f"  Total Frames:       {len(frames)}\n")
+                f.write(f"  Coordination:       {len(coord_frames)}\n")
+                f.write(f"  Opposition:         {len(opp_frames)}\n")
+
+                f.write("\n### HOMEOSTASIS\n")
+                f.write(f"  Final Hunger:       {robot.hunger}\n")
+                f.write(f"  Final Tiredness:    {robot.tiredness}\n")
+                f.write(
+                    f"  Bayesian Mode:      {'ENABLED' if learner.bayesian else 'DISABLED'}\n"
+                )
+
+                f.write("\n### LEARNING EFFICIENCY\n")
+                score_per_step = (
+                    robot.score / self.total_steps if self.total_steps > 0 else 0
+                )
+                rules_per_step = (
+                    len(rules) / self.total_steps if self.total_steps > 0 else 0
+                )
+                f.write(f"  Score/Step:         {score_per_step:.4f}\n")
+                f.write(f"  Rules/Step:         {rules_per_step:.4f}\n")
+                f.write(
+                    f"  Exploration:        {self.total_steps - robot.score} steps\n"
+                )
 
             f.write("\n" + "=" * 60 + "\n")
             f.write("                    END OF REPORT\n")
