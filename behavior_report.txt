@@ -1,0 +1,98 @@
+============================================================
+       GENERAL LEARNER 5 - DUAL BOT RESEARCH REPORT
+============================================================
+Generated: 2026-04-09 22:15:06
+Session Duration: 74 steps
+------------------------------------------------------------
+
+============================================================
+### BOT 1 REPORT 
+============================================================
+
+### EXECUTIVE SUMMARY
+  Total Steps:         74
+  Final Score:        10
+  Batteries Found:     1
+
+### RULE STATISTICS
+  Total Rules:         91
+  Concrete Rules:     91
+  Semantic Rules:     0
+  Derived Rules:      0
+  Avg Weight:         +0.97
+  Max Weight:         +3.20
+  Min Weight:         +0.50
+
+### CONCEPTS
+  Total Concepts:     1
+  Simple Concepts:    1
+  Compound Concepts:  0
+
+### ACTION DISTRIBUTION
+  FORWARD   :   26 ( 28.6%)
+  BACKWARD  :   21 ( 23.1%)
+  LEFT      :   20 ( 22.0%)
+  RIGHT     :   24 ( 26.4%)
+
+### RFT RELATIONSHIPS
+  Total Frames:       0
+  Coordination:       0
+  Opposition:         0
+
+### HOMEOSTASIS
+  Final Hunger:       32
+  Final Tiredness:    37
+  Bayesian Mode:      ENABLED
+
+### LEARNING EFFICIENCY
+  Score/Step:         0.1351
+  Rules/Step:         1.2297
+  Exploration:        64 steps
+
+============================================================
+### BOT 2 REPORT (ACTIVE)
+============================================================
+
+### EXECUTIVE SUMMARY
+  Total Steps:         74
+  Final Score:        0
+  Batteries Found:     0
+
+### RULE STATISTICS
+  Total Rules:         75
+  Concrete Rules:     75
+  Semantic Rules:     0
+  Derived Rules:      0
+  Avg Weight:         +1.09
+  Max Weight:         +4.80
+  Min Weight:         +0.51
+
+### CONCEPTS
+  Total Concepts:     2
+  Simple Concepts:    2
+  Compound Concepts:  0
+
+### ACTION DISTRIBUTION
+  FORWARD   :   17 ( 22.7%)
+  BACKWARD  :   16 ( 21.3%)
+  LEFT      :   26 ( 34.7%)
+  RIGHT     :   16 ( 21.3%)
+
+### RFT RELATIONSHIPS
+  Total Frames:       0
+  Coordination:       0
+  Opposition:         0
+
+### HOMEOSTASIS
+  Final Hunger:       37
+  Final Tiredness:    37
+  Bayesian Mode:      ENABLED
+
+### LEARNING EFFICIENCY
+  Score/Step:         0.0000
+  Rules/Step:         1.0135
+  Exploration:        74 steps
+
+============================================================
+                    END OF REPORT
+============================================================

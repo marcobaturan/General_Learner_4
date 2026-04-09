@@ -3,13 +3,5 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Databases
-*.db
-*.sqlite
-
-# Reports and temporary exports
-db_export.txt
-behavior_report.txt
-
 # OS
 .DS_Store
