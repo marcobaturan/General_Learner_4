@@ -349,30 +349,45 @@ def draw_raycast_view(
 ):
     """
     Renders a pseudo-3D scene using Ray Casting from the robot's perspective.
-    GL5: Shows mirror reflection with robot's self-ID when facing mirror.
-    GL5 Dual-Bot: Shows other robot in perspective-appropriate colors.
-
-    Color Logic:
-    - Bot viewing POV sees itself in its own color in mirror
-    - Other robot appears in the opposite bot's color (blue/orange)
+    GL5.1 DUAL-POV: Now shows both robots' POVs stacked.
     """
     import math
 
-    pygame.draw.rect(screen, BLACK, rect)  # Ceiling/Background
+    # Divide rect into two halves
+    half_h = rect.height // 2
+    rect1 = pygame.Rect(rect.x, rect.y, rect.width, half_h - 2)
+    rect2 = pygame.Rect(rect.x, rect.y + half_h + 2, rect.width, half_h - 2)
 
-    # Solid dark ground (no grid - looks cleaner)
+    # Draw POV for each robot
+    draw_single_pov(screen, rect1, robot, env, learner, other_bot, 1, ORANGE)
+    draw_single_pov(screen, rect2, other_bot, env, learner, robot, 2, CYAN)
+
+
+def draw_single_pov(
+    screen, rect, robot, env, learner, other_bot, bot_num, border_color
+):
+    """
+    Draws a single POV view for one robot.
+    bot_num: 1 or 2
+    border_color: Color for border (Bot1=ORANGE, Bot2=CYAN)
+    """
+    import math
+
+    if robot is None:
+        pygame.draw.rect(screen, BLACK, rect)
+        pygame.draw.rect(screen, border_color, rect, 2)
+        font = pygame.font.SysFont("Arial", 10)
+        lbl = font.render(f"Bot{bot_num}: N/A", True, border_color)
+        screen.blit(lbl, (rect.x + 5, rect.y + rect.height // 2 - 10))
+        return
+
+    pygame.draw.rect(screen, BLACK, rect)
+
     ground_y = rect.y + rect.height // 2
     ground_h = rect.height // 2
-    pygame.draw.rect(
-        screen,
-        (25, 25, 30),
-        (rect.x, ground_y, rect.width, ground_h),
-    )
+    pygame.draw.rect(screen, (25, 25, 30), (rect.x, ground_y, rect.width, ground_h))
+    pygame.draw.rect(screen, border_color, rect, 1)
 
-    pygame.draw.rect(screen, CYAN, rect, 2)  # Border
-
-    # 1. Map direction to Radians
-    # DIR_N: -pi/2, DIR_E: 0, DIR_S: pi/2, DIR_W: pi
     base_angle = 0
     if robot.direction == DIR_N:
         base_angle = -math.pi / 2
@@ -383,57 +398,44 @@ def draw_raycast_view(
     elif robot.direction == DIR_W:
         base_angle = math.pi
 
-    fov = math.pi / 3  # 60 degrees
+    fov = math.pi / 3
     half_fov = fov / 2
-    num_rays = rect.width // 2  # Original resolution
+    num_rays = rect.width // 2
     delta_angle = fov / num_rays
-
-    # Column width to fill the entire rect
     col_width = rect.width // num_rays
-
-    # Starting ray angle
     ray_angle = base_angle - half_fov
 
-    # GL5: Track if mirror is visible
     mirror_visible = False
     mirror_distance = 0
 
-    # 2. Iterate through screen horizontal columns
     for i in range(num_rays):
-        # Step small increments along the ray
-        step = 0.08  # Smaller step for better accuracy
+        step = 0.08
         max_dist = 12.0
         dist = 0
         hit = False
         hit_obj = EMPTY_ID
-        hit_side = 0  # 0 for vertical, 1 for horizontal
+        hit_side = 0
 
-        # Ray Vector
         sin_a = math.sin(ray_angle)
         cos_a = math.cos(ray_angle)
 
         while dist < max_dist and not hit:
             dist += step
-            # Projection in grid coords
             rx = robot.x + 0.5 + cos_a * dist
             ry = robot.y + 0.5 + sin_a * dist
 
-            # Boundary/Collision check
             if 0 <= rx < GRID_W and 0 <= ry < GRID_H:
                 obj = env.get_at(int(rx), int(ry))
-                # GL5 Dual-Bot: Check for other robot
                 if other_bot and int(rx) == other_bot.x and int(ry) == other_bot.y:
                     hit = True
-                    hit_obj = 99  # Other bot ID
+                    hit_obj = 99
                 elif obj == WALL_ID or obj == BATTERY_ID:
                     hit = True
                     hit_obj = obj
-                    # Side detection (simple fractional check)
                     dx = abs(rx - round(rx))
                     dy = abs(ry - round(ry))
                     hit_side = 1 if dy < dx else 0
                 elif obj == MIRROR_ID:
-                    # Mirror detected - could be reflection
                     if dist < max_dist:
                         hit = True
                         hit_obj = MIRROR_ID
@@ -441,270 +443,190 @@ def draw_raycast_view(
                             mirror_visible = True
                             mirror_distance = dist
             else:
-                hit = True  # Out of bounds is wall-like
+                hit = True
                 hit_obj = WALL_ID
                 hit_side = 0
 
-        # 3. Project to 2D
-        # Fisheye correction
         dist = dist * math.cos(ray_angle - base_angle)
-
-        # Line height calculation
         proj_h = (1.0 / (dist + 0.1)) * rect.height * 0.8
         if proj_h > rect.height:
             proj_h = rect.height
 
-        # Vertical column rendering
         y1 = rect.y + rect.height // 2 - proj_h // 2
         y2 = rect.y + rect.height // 2 + proj_h // 2
 
-        # Color & Shading
         brightness = max(0, 255 - int(dist * 20))
         if hit_side == 1:
-            brightness = int(brightness * 0.7)  # Side-shading
+            brightness = int(brightness * 0.7)
 
         color = (brightness, brightness, brightness)
         if hit_obj == BATTERY_ID:
-            color = (0, brightness, 0)  # Green battery pillars
+            color = (0, brightness, 0)
         elif hit_obj == MIRROR_ID:
-            # Mirror shows reflection - simplified blue/purple tint
-            mirror_color = (100, 80, 150)
-            color = mirror_color
+            color = (100, 80, 150)
         elif hit_obj == 99:
-            # GL5 Dual-Bot: Other robot appears in opposite color to viewer
-            # If active_bot is 1 (blue), other appears orange; if 2 (orange), appears blue
-            if active_bot == 1:
-                other_color = (
-                    brightness,
-                    brightness // 2,
-                    0,
-                )  # Orange for bot1 viewing
+            if bot_num == 1:
+                color = (brightness, brightness // 2, 0)
             else:
-                other_color = (0, brightness // 2, brightness)  # Blue for bot2 viewing
-            color = other_color
+                color = (0, brightness // 2, brightness)
 
-        # Draw filled rectangle for the column
         pygame.draw.rect(
             screen, color, (rect.x + i * col_width, y1, col_width, y2 - y1)
         )
-
         ray_angle += delta_angle
 
-    # GL5: Draw robot reflection in mirror ONLY when directly facing it
-    # (not in periphery) - reflection on the front face of the cube
-    if mirror_visible and learner:
-        # Only show reflection if mirror is close and near center of view
-        # (direct front view, not peripheral)
-        if mirror_distance < 6:  # Close enough to see detailed reflection
-            # Draw reflection in center of view (direct front reflection)
-            ref_x = rect.x + rect.width // 2 - 30
-            ref_y = rect.y + rect.height // 2 - 40
-            ref_w = 60
-            ref_h = 70
+    if mirror_visible and learner and mirror_distance < 6:
+        ref_x = rect.x + rect.width // 2 - 20
+        ref_y = rect.y + rect.height // 2 - 25
+        ref_w = 40
+        ref_h = 45
 
-            # Reflection body - color matches the viewing robot (self-recognition)
-            if active_bot == 1:
-                # Bot 1 sees itself as blue
-                reflection_body = (50, 80, 150)
-                reflection_border = (80, 120, 200)
-            else:
-                # Bot 2 sees itself as orange
-                reflection_body = (150, 80, 30)
-                reflection_border = (200, 120, 50)
+        if bot_num == 1:
+            reflection_body = (50, 80, 150)
+            reflection_border = (80, 120, 200)
+        else:
+            reflection_body = (150, 80, 30)
+            reflection_border = (200, 120, 50)
 
-            pygame.draw.rect(screen, reflection_body, (ref_x, ref_y, ref_w, ref_h))
-            pygame.draw.rect(screen, reflection_border, (ref_x, ref_y, ref_w, ref_h), 2)
+        pygame.draw.rect(screen, reflection_body, (ref_x, ref_y, ref_w, ref_h))
+        pygame.draw.rect(screen, reflection_border, (ref_x, ref_y, ref_w, ref_h), 2)
 
-            # Two white eyes
-            eye_y = ref_y + 20
-            pygame.draw.circle(screen, WHITE, (ref_x + 18, eye_y), 6)
-            pygame.draw.circle(screen, WHITE, (ref_x + ref_w - 18, eye_y), 6)
-            # Pupils
-            pygame.draw.circle(screen, BLACK, (ref_x + 20, eye_y), 2)
-            pygame.draw.circle(screen, BLACK, (ref_x + ref_w - 16, eye_y), 2)
+        eye_y = ref_y + 12
+        pygame.draw.circle(screen, WHITE, (ref_x + 12, eye_y), 4)
+        pygame.draw.circle(screen, WHITE, (ref_x + ref_w - 12, eye_y), 4)
+        pygame.draw.circle(screen, BLACK, (ref_x + 13, eye_y), 2)
+        pygame.draw.circle(screen, BLACK, (ref_x + ref_w - 11, eye_y), 2)
 
-            # Red nose/ID emitter
-            nose_x = ref_x + ref_w // 2
-            nose_y = ref_y + 45
-            pygame.draw.circle(screen, (255, 50, 50), (nose_x, nose_y), 5)
-            pygame.draw.circle(screen, (255, 200, 200), (nose_x, nose_y), 3)
+        nose_x = ref_x + ref_w // 2
+        nose_y = ref_y + 28
+        pygame.draw.circle(screen, (255, 50, 50), (nose_x, nose_y), 4)
 
-            # ID display
-            font = pygame.font.SysFont("Arial", 11, bold=True)
-            id_str = str(robot.self_id)
-            id_text = f"ID:{id_str}"
-            id_surf = font.render(id_text, True, (255, 150, 150))
-            screen.blit(id_surf, (ref_x + 5, ref_y + ref_h + 5))
+        font = pygame.font.SysFont("Arial", 9, bold=True)
+        id_surf = font.render(f"Bot{bot_num}", True, (255, 150, 150))
+        screen.blit(id_surf, (ref_x + 5, ref_y + ref_h + 3))
 
-    # HUD label
-    font = pygame.font.SysFont("Arial", 14)
-    lbl = font.render(" POV - ROBOT VISION", True, WHITE)
-    screen.blit(lbl, (rect.x + 5, rect.y + 5))
+    font = pygame.font.SysFont("Arial", 10, bold=True)
+    lbl = font.render(f"Bot{bot_num} POV", True, border_color)
+    screen.blit(lbl, (rect.x + 5, rect.y + 2))
 
 
-def draw_inferences_window(screen, rect, learner, robot=None):
-    """Draws the real-time cognitive inferences of the Learner."""
+def draw_inferences_window(screen, rect, learner, robot=None, gwt_result=None):
+    """
+    GL5.1: Draws mental state. Positioned below maze grid.
+    """
     pygame.draw.rect(screen, (20, 20, 25), rect)
     pygame.draw.rect(screen, ORANGE, rect, 2)
 
-    font_title = pygame.font.SysFont("Arial", 14, bold=True)
-    font_body = pygame.font.SysFont("Arial", 12)
+    font_title = pygame.font.SysFont("Arial", 11, bold=True)
+    font_body = pygame.font.SysFont("Arial", 9)
+    font_small = pygame.font.SysFont("Arial", 8)
 
-    lbl = font_title.render("INFERENCES (Real-time Processing)", True, ORANGE)
-    screen.blit(lbl, (rect.x + 5, rect.y + 5))
+    lbl = font_title.render("MENTAL STATES", True, ORANGE)
+    screen.blit(lbl, (rect.x + 5, rect.y + 2))
 
-    y_off = rect.y + 30
+    y1 = rect.y + 16
+    y2 = rect.y + 16
+    col1_x = rect.x + 6
+    col2_x = rect.x + rect.width // 2 + 3
+    step = 10
 
-    inf_type = learner.last_inference_info.get("type", "N/A")
-    inf_det = learner.last_inference_info.get("details", "")
+    def sec1(title, color):
+        nonlocal y1
+        screen.blit(font_body.render(f"[{title}]", True, color), (col1_x, y1))
+        y1 += step
 
-    type_surf = font_body.render(f"Decision Logic: {inf_type}", True, CYAN)
-    screen.blit(type_surf, (rect.x + 10, y_off))
-    y_off += 18
+    def sec2(title, color):
+        nonlocal y2
+        screen.blit(font_body.render(f"[{title}]", True, color), (col2_x, y2))
+        y2 += step
 
-    det_surf = font_body.render(f"Details: {inf_det}", True, (200, 200, 200))
-    screen.blit(det_surf, (rect.x + 10, y_off))
-    y_off += 25
+    def ln1(text, color=(200, 200, 200)):
+        nonlocal y1
+        screen.blit(font_small.render(text, True, color), (col1_x, y1))
+        y1 += step
 
-    plan_text = (
-        f"Active Sequence: {learner.active_plan}"
-        if learner.active_plan
-        else "Active Sequence: [EMPTY]"
+    def ln2(text, color=(200, 200, 200)):
+        nonlocal y2
+        screen.blit(font_small.render(text, True, color), (col2_x, y2))
+        y2 += step
+
+    # LEFT COLUMN
+    sec1("DECISION", CYAN)
+    inf_type = learner.last_inference_info.get("type", "N/A")[:15]
+    ln1(f"Logic: {inf_type}", GREEN)
+
+    # Activity tracking
+    activity = learner.get_last_activity()
+    last_cmd = activity.get("last_command")
+    last_reinf = activity.get("last_reinforcement", 0)
+    if last_cmd:
+        ln1(f"Cmd: {last_cmd[:12]}", YELLOW)
+    reinf_color = GREEN if last_reinf > 0 else (RED if last_reinf < 0 else DARK_GRAY)
+    ln1(f"Reinf: {last_reinf:+d}", reinf_color)
+
+    vic = learner.get_vicarious_status()
+    sec1("VICARIOUS", LIGHT_ORANGE)
+    mode = "IMT" if vic.get("in_imitating_mode") else "AUTO"
+    sat = vic.get("saturation", 0)
+    ln1(
+        f"{mode} Sat:{sat}% Auto:{vic.get('autonomous_streak', 0)}",
+        ORANGE if vic.get("in_imitating_mode") else GREEN,
     )
-    plan_color = GREEN if learner.active_plan else DARK_GRAY
-    plan_surf = font_body.render(plan_text, True, plan_color)
-    screen.blit(plan_surf, (rect.x + 10, y_off))
-    y_off += 18
 
-    agenda_len = len(learner.agenda)
-    ag_surf = font_body.render(
-        f"Expected Agenda Nodes: {agenda_len}",
-        True,
-        PURPLE if agenda_len > 0 else DARK_GRAY,
+    hearing = learner.get_hearing_status()
+    heard_now = hearing.get("heard_this_cycle", [])
+    heard_str = heard_now[0][0] if heard_now else "-"
+    sec1("HEARING", CYAN if heard_now else DARK_GRAY)
+    ln1(
+        f"Heard: {heard_str} Beliefs:{hearing.get('beliefs_count', 0)}",
+        GREEN if heard_now else DARK_GRAY,
     )
-    screen.blit(ag_surf, (rect.x + 10, y_off))
-    y_off += 18
 
-    stag_surf = font_body.render(
-        f"Stagnation Borer: {'DETECTED' if learner.stagnant else 'CLEAR'}",
-        True,
-        RED if learner.stagnant else (100, 100, 100),
+    imag = learner.get_imagination_status()
+    sec1(
+        "IMAGINAT",
+        PURPLE if imag.get("active") else (CYAN if imag.get("enabled") else DARK_GRAY),
     )
-    screen.blit(stag_surf, (rect.x + 10, y_off))
-    y_off += 18
+    ln1(
+        f"{'ACTIVE' if imag.get('active') else 'IDLE'} Idle:{imag.get('idle_counter', 0)}",
+        PURPLE if imag.get("active") else GREEN,
+    )
+    ln1(
+        f"Prods:{imag.get('total_imagined', 0)}/{imag.get('total_productions', 0)} Conf:{imag.get('avg_confidence', 0):.2f}",
+        PURPLE,
+    )
 
-    # GL5: Command Learning Debug Panel
-    # =================================
-    # Always show last command info (if any) + current state
-
-    # Show current command if being processed
-    current_cmd = getattr(learner, "last_command_processed", None)
-    has_cmd = current_cmd is not None and current_cmd.strip() != ""
-
-    if has_cmd:
-        cmd_surf = font_body.render(f"Command: '{current_cmd}'", True, YELLOW)
-        screen.blit(cmd_surf, (rect.x + 10, y_off))
-        y_off += 16
-
-        # Show tokens
-        tokens = getattr(learner, "_last_tokens", [])
-        if tokens:
-            tokens_str = " | ".join([str(t) for t in tokens])
-            tok_surf = font_body.render(f"Tokens: {tokens_str}", True, CYAN)
-            screen.blit(tok_surf, (rect.x + 10, y_off))
-            y_off += 16
-
-        # Check learned rules for this command
-        if hasattr(learner, "memory"):
-            try:
-                from constants import ACT_LEFT, ACT_RIGHT, ACT_FORWARD, ACT_BACKWARD
-
-                action_names = {
-                    ACT_LEFT: "A0",
-                    ACT_RIGHT: "A1",
-                    ACT_FORWARD: "A2",
-                    ACT_BACKWARD: "A3",
-                }
-
-                cmd_upper = current_cmd.upper()
-                cmd_id = learner.memory.get_or_create_concept_id(cmd_upper)
-                rules = learner.memory.get_rules(limit=500)
-                cmd_rules = [r for r in rules if r["command_id"] == cmd_id]
-
-                if cmd_rules:
-                    for r in cmd_rules[:2]:
-                        if r.get("is_composite"):
-                            act_str = f"MACRO ({len(r.get('macro_actions', []))} acts)"
-                        else:
-                            act = r.get("target_action", 0)
-                            act_str = action_names.get(act, str(act))
-                        rule_surf = font_body.render(
-                            f"→ Learned: {act_str} (w={r.get('weight', 0):.1f})",
-                            True,
-                            GREEN,
-                        )
-                        screen.blit(rule_surf, (rect.x + 10, y_off))
-                        y_off += 14
-                else:
-                    notfound = font_body.render("→ NOT YET LEARNED", True, RED)
-                    screen.blit(notfound, (rect.x + 10, y_off))
-                    y_off += 16
-            except (json.JSONDecodeError, KeyError, TypeError, sqlite3.Error):
-                pass
+    # RIGHT COLUMN
+    mem = learner.memory if hasattr(learner, "memory") else None
+    sec2("MEMORY", GREEN)
+    if mem:
+        rules = mem.get_rules(limit=1000)
+        frames = mem.get_all_frames()
+        objs = getattr(learner, "objective_values", {})
+        goals = sum(1 for v in objs.values() if v >= 3)
+        pains = sum(1 for v in objs.values() if v <= -3)
+        ln2(f"Rules:{len(rules)} Frames:{len(frames)}", GREEN)
+        ln2(f"Goals:{goals} Pains:{pains}", PURPLE)
     else:
-        # No command - show autonomous mode info
-        mode_surf = font_body.render("Mode: AUTONOMOUS", True, DARK_GRAY)
-        screen.blit(mode_surf, (rect.x + 10, y_off))
-        y_off += 16
+        ln2("Memory: N/A", DARK_GRAY)
 
-        # Show what perception the robot has
-        if hasattr(learner, "_last_perception"):
-            perc = learner._last_perception
-            if perc and len(perc) > 0:
-                perc_short = perc[:4] if len(perc) > 4 else perc
-                perc_surf = font_body.render(
-                    f"Perception: {perc_short}", True, DARK_GRAY
-                )
-                screen.blit(perc_surf, (rect.x + 10, y_off))
-                y_off += 16
+    sec2("HISTORY", YELLOW)
+    hist = getattr(learner, "action_history", [])
+    if hist:
+        names = {0: "L", 1: "R", 2: "F", 3: "B"}
+        recent = [names.get(a, "?") for a in hist[-4:]]
+        ln2(f"Recent: {recent}", YELLOW)
+    plan = getattr(learner, "active_plan", [])
+    ln2(f"Plan: {plan if plan else '-'}", GREEN if plan else DARK_GRAY)
 
-    # GL5: Show learned objectives
-    obj_count = len(getattr(learner, "objective_values", {}))
-    goals = sum(
-        1 for v in getattr(learner, "objective_values", {}).values() if v >= 3.0
-    )
-    pains = sum(
-        1 for v in getattr(learner, "objective_values", {}).values() if v <= -3.0
-    )
-    obj_surf = font_body.render(
-        f"Learned Goals: {goals} | Pains: {pains} | Total: {obj_count}",
-        True,
-        GREEN if goals > 0 else (RED if pains > 0 else DARK_GRAY),
-    )
-    screen.blit(obj_surf, (rect.x + 10, y_off))
-    y_off += 18
+    if robot:
+        sec2("HOMEOST", RED)
+        hcolor = RED if robot.hunger > 80 else (ORANGE if robot.hunger > 50 else GREEN)
+        ln2(f"Hung:{robot.hunger} Tired:{robot.tiredness}", hcolor)
+        ln2(f"Score:{robot.score} ID:{getattr(robot, 'self_id', '?')}", CYAN)
 
-    frames = learner.memory.get_all_frames() if hasattr(learner, "memory") else []
-    coord_count = sum(1 for f in frames if f["relation_type"] == "COORD")
-    opp_count = sum(1 for f in frames if f["relation_type"] == "OPP")
-    rft_surf = font_body.render(
-        f"RFT Frames: {len(frames)} (COORD:{coord_count} OPP:{opp_count})",
-        True,
-        PURPLE if frames else DARK_GRAY,
-    )
-    screen.blit(rft_surf, (rect.x + 10, y_off))
-    y_off += 18
-
-    # GL5: Show autobiographical self-ID
-    self_id = 0
-    if robot and hasattr(robot, "self_id"):
-        self_id = robot.self_id
-    elif hasattr(learner, "robot") and hasattr(learner.robot, "self_id"):
-        self_id = learner.robot.self_id
-
-    id_surf = font_body.render(
-        f"Self-ID: {self_id} (Autobiographical)",
-        True,
-        CYAN if self_id else GRAY,
-    )
-    screen.blit(id_surf, (rect.x + 10, y_off))
+    if mem:
+        cog = mem.get_cognitive_stats()
+        sec2("COGNITIVE", PURPLE)
+        ln2(f"CogProds:{cog.get('total_productions', 0)}", PURPLE)
+        ln2(f"HeardMem:{cog.get('total_heard_memories', 0)}", CYAN)

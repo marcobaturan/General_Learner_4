@@ -1,29 +1,63 @@
 """
-General Learner 5 (GL5) -- Artificial Cognitive Engine
+################################################################################
+#                                                                              #
+#      _      ______          _____  _   _ ______ _____                        #
+#     | |    |  ____|   /\   |  __ \| \ | |  ____|  __ \                       #
+#     | |    | |__     /  \  | |__) |  \| | |__  | |__) |                      #
+#     | |    |  __|   / /\ \ |  _  /| . ` |  __| |  _  /                       #
+#     | |____| |____ / ____ \| | \ \| |\  | |____| | \ \                       #
+#     |______|______/_/    \_\_|  \_\_| \_|______|_|  \_\                      #
+#                                                                              #
+#      ______ _   _  _____ _____ _   _ ______                                  #
+#     |  ____| \ | |/ ____|_   _| \ | |  ____|                                 #
+#     | |__  |  \| | |  __  | | |  \| | |__                                    #
+#     |  __| | . ` | | |_ | | | | . ` |  __|                                   #
+#     | |____| |\  | |__| |_| |_| |\  | |____                                  #
+#     |______|_| \_|\_____|_____|_| \_|______|                                 #
+#                                                                              #
+################################################################################
 
-This module implements the core cognitive architecture of the GL5 agent,
-extending GL4's operant conditioning with Relational Frame Theory (RFT)
-derived reasoning capabilities.
+GENERAL LEARNER 5 (GL5) - THE COGNITIVE ENGINE
+==============================================
 
-The architecture implements a multi-phase decision cascade:
-- Phase A: Macro execution (procedural memory retrieval)
-- Phase B: Token decomposition (word-level parsing)
-- Phase C: Associative memory (semantic retrieval)
-- Phase D: RFT derived inference (novel contribution of GL5)
+This module implements the core 'Brain' of the agent. It is an implementation 
+of the Universal Learner principle, augmented with Relational Frame Theory 
+(RFT) and Global Workspace Theory (GWT).
 
-Based on:
-- Fritz, W. (1989). The General Learner -- modelling neural column behaviour.
-- Skinner, B.F. (1938). The Behaviour of Organisms -- operant conditioning.
-- Hayes, S.C. et al. (2001). Relational Frame Theory.
-- O'Keefe, J. & Nadel, L. (1978). The Hippocampus as a Cognitive Map.
+SCIENTIFIC ARCHITECTURE:
+------------------------
+1. OPERANT CONDITIONING:
+   Implements B.F. Skinner's (1938) principles of reinforcement. Actions 
+   that lead to positive outcomes (batteries) increase in weight.
+   Ref: Skinner, B. F. (1938). The Behavior of Organisms.
 
-Author: Marco (extending Grey Walter's cybernetic heritage)
+2. UNIVERSAL LEARNER (UL):
+   Follows Walter Fritz's model: Perception -> Representation -> Choice. 
+   The agent maps 'Situations' (Fuzzy Vectors) to 'Actions'.
+   Ref: Fritz, W. (1989). The General Learner.
+
+3. RELATIONAL FRAME THEORY (RFT):
+   Implements Hayes' (2001) RFT for derived relational responding. Enables 
+   inference without direct experience (e.g., A is like B, B does X, therefore A does X).
+   Ref: Hayes, S. C., et al. (2001). Relational Frame Theory.
+
+4. HIERARCHICAL MACRO COMPOSITION:
+   Models the basal ganglia's ability to 'chunk' sequences of actions into 
+   single motor programs (Macros).
+
+5. SOCIAL LEARNING (VICARIOUS):
+   Based on Albert Bandura's Social Learning Theory. Robots can observe 
+   and imitate each other when in proximity.
+   Ref: Bandura, A. (1977). Social Learning Theory.
+
+Author: Marco
 """
 
 import random
 import json
 import math
 import time
+from collections import defaultdict
 from memory import Memory
 from fuzzy_logic import FBN
 from constants import *
@@ -32,23 +66,22 @@ from rft import RelationalFrameEngine
 
 class Learner:
     """
+    ############################################################################
+    #   _      ______          _____  _   _ ______ _____                       #
+    #  | |    |  ____|   /\   |  __ \| \ | |  ____|  __ \                      #
+    #  | |    | |__     /  \  | |__) |  \| | |__  | |__) |                     #
+    #  | |    |  __|   / /\ \ |  _  /| . ` |  __| |  _  /                      #
+    #  | |____| |____ / ____ \| | \ \| |\  | |____| | \ \                      #
+    #  |______|______/_/    \_\_|  \_\_| \_|______|_|  \_\                     #
+    ############################################################################
+
     The cognitive core of the General Learner agent.
 
-    Implements the Universal Learner principle (Fritz, 1989):
-        Stimulus → Representation → Decision → Action
-
-    This class orchestrates the complete cognitive loop, from perceptual
-    processing through decision making to action execution. It models
-    several key brain systems:
-
-    - Prefrontal Cortex: Executive decision-making, action selection
-    - Basal Ganglia: Habit formation, action sequencing (procedural memory)
-    - Hippocampus: Spatial mapping, episodic memory, pattern completion
-    - RFT Module (GL5): Prefrontal abstract relational reasoning
-
-    The decision cascade (Phases A-D) mimics the brain's hierarchical
-    processing: from specific habit retrieval (Phase A) through increasingly
-    abstract inference (Phases B-D) to ground-state exploration.
+    This class orchestrates the complete cognitive loop:
+    1. PERCEPTION: Scanning the environment and converting it to Fuzzy Vectors.
+    2. INFERENCE: Choosing an action through the Decision Cascade (Phases A-D).
+    3. PLANNING: Prospective simulation of future states (BFS over cognitive map).
+    4. LEARNING: Encoding experiences and consolidating them during sleep.
     """
 
     def __init__(self, memory: Memory, environment=None):
@@ -91,6 +124,12 @@ class Learner:
         # GL5: RFT engine for derived relational reasoning
         self.rft_engine = RelationalFrameEngine()
 
+        # GL5.1: Fuzzy Inference System for flexible reasoning
+        from fuzzy_engine import FuzzyInferenceSystem, FuzzyRFTIntegrator
+
+        self.fuzzy_engine = FuzzyInferenceSystem()
+        self.fuzzy_rft = FuzzyRFTIntegrator(self.fuzzy_engine, memory)
+
         # Loop prevention: monitors for behavioural stagnation
         # Analogous to the brain's dopamine-mediated novelty-seeking
         # when habitual loops become unrewarding
@@ -114,6 +153,11 @@ class Learner:
         self._zero_reward_streak = 0
         self._last_reward = 0
 
+        # GL5.1: Last reinforcement and command tracking for display
+        self._last_reinforcement = 0
+        self._last_command_taught = None
+        self._last_sleep_triggered = False
+
         # Caching for situational graph to prevent overload
         self._situational_graph_cache = None
         self._situational_graph_timestamp = 0
@@ -122,7 +166,43 @@ class Learner:
         self._act_rules_cache = None
         self._act_rules_timestamp = 0
 
-    def act(self, robot, text_command=None, other_bot=None):
+        # GL5.1: Vicarious Learning (Imitation) State
+        # =============================================
+        # Implements observational learning where one robot watches
+        # and imitates another robot's actions when within proximity.
+        # Based on Bandura's social learning theory.
+        self.vicarious_enabled = True
+        self._vicarious_observed_actions = []  # Actions seen from other bot
+        self._vicarious_imitated_count = {}  # Count how many times each action was imitated
+        self._vicarious_saturation = 0  # Imitation saturation level (0-100)
+        self._vicarious_autonomous_streak = 0  # Consecutive autonomous actions
+        self._vicarious_last_demonstrator = None  # Track who we're watching
+        self._vicarious_imitation_mode = False  # Currently imitating?
+        self._vicarious_current_sequence = []  # Current sequence being observed/imitated
+
+        self._last_gwt_context = None  # GL5.1: Store last GWT context
+
+        # GL5.1: Hearing System (Social Learning through Sound)
+        # ===================================================
+        # Los robots "cantan" sus acciones y se "oyen" mutuamente.
+        # Este sistema procesa los sonidos escuchados y los asocia con acciones.
+        self._heard_this_cycle = []  # Songs heard from other bots this cycle
+        self._last_sang_action = None  # Action the robot sang last
+        self._hearing_sequence = []  # Sequence of heard songs
+        self._song_action_beliefs = {}  # Beliefs about song-action associations
+
+        # GL5.1: Imagination Mode (Abstract Reasoning)
+        # =============================================
+        # Cuando el robot está ocioso, entra en modo imaginación
+        # donde reorganiza el conocimiento para crear abstracciones.
+        self._imagination_enabled = IMAGINATION_ENABLED
+        self._imagination_mode = False  # Currently in imagination?
+        self._imagination_cycles = 0  # Cycles spent in imagination
+        self._idle_counter = 0  # Consecutive idle turns
+        self._last_reward_was_positive = True  # Track reward for idle detection
+        self._imagined_productions = []  # Productions created in imagination
+
+    def act(self, robot, text_command=None, other_bot=None, gwt_context=None):
         """
         Determines the next action -- the core decision function.
 
@@ -131,6 +211,9 @@ class Learner:
 
         GL5 Dual-Bot: other_bot parameter enables mutual recognition
         in perception (OTHER_BOT_DETECTED concept).
+
+        GL5.1: gwt_context provides Global Workspace Theory conscious content
+        for integration with long-range vision and spatial awareness.
 
         PHASE A: MACRO MATCH (Basal Ganglia -- Procedural Memory)
         ---------------------------------------------------------
@@ -450,6 +533,23 @@ class Learner:
             self._act_rules_cache = self.memory.get_rules()
             self._act_rules_timestamp = current_time
         rules = self._act_rules_cache
+
+        # GL5.1: Store GWT context for integration
+        self._last_gwt_context = gwt_context
+
+        # GL5.1: Use GWT conscious content to boost relevant action weights
+        # If GWT reports seeing a battery nearby, boost FORWARD action
+        gwt_battery_boost = 0.0
+        gwt_other_bot_nearby = False
+        if gwt_context and isinstance(gwt_context, dict):
+            vision = gwt_context.get("vision", {})
+            if vision.get("nearest_battery"):
+                dist = vision.get("nearest_battery_dist", 10)
+                if dist <= 3:
+                    gwt_battery_boost = 2.0 * (3 - dist)  # Closer = higher boost
+            if vision.get("other_bot"):
+                gwt_other_bot_nearby = True
+
         action_options = {}
         for r in rules:
             if r["perception_pattern"] == perc_id:
@@ -458,24 +558,87 @@ class Learner:
                     action_options[a] = []
                 action_options[a].append(r["weight"])
 
+        # GL5.1: RFT Integration for Autonomous Flexibility
+        # If direct rules are few or weak, boost actions from coordinate concepts
+        if len(action_options) < 2 or any(sum(w)/len(w) < 2.0 for w in action_options.values()):
+            # Find RFT coordinate concepts for the situation if any
+            # (In GL5, perceptions can be concepts too if they are labeled)
+            situation_concept_id = self.memory.get_or_create_concept_id(perc_id)
+            if situation_concept_id:
+                frames = self.memory.get_frames_for_concept(situation_concept_id)
+                for frame in frames:
+                    if frame["relation_type"] == "COORD" and frame["strength"] > 0.5:
+                        partner_id = frame["concept_b"] if frame["concept_a"] == situation_concept_id else frame["concept_a"]
+                        # Find rules for the coordinate situation
+                        for r in rules:
+                            if r["command_id"] == partner_id or r["perception_pattern"] == str(partner_id):
+                                a = r["target_action"]
+                                if a not in action_options:
+                                    action_options[a] = []
+                                # Add weighted RFT influence
+                                action_options[a].append(r["weight"] * frame["strength"] * 0.5)
+
+        # GL5.1: Vicarious Learning Check
+        # ================================
+        # If another robot is nearby, observe their actions and potentially imitate
+        vicarious_action = None
+        if self.vicarious_enabled and other_bot is not None:
+            vicarious_action = self._process_vicarious_learning(robot, other_bot)
+
+        # Determine if we should use vicarious action based on saturation
+        use_vicarious = False
+        if vicarious_action is not None:
+            saturation_prob = max(0, 100 - self._vicarious_saturation) / 100.0
+            if random.random() < saturation_prob:
+                use_vicarious = True
+
         if not action_options:
-            self.last_inference_info = {
-                "type": "UNKNOWN SITUATION",
-                "details": "Random Action",
-            }
-            return random.choice([ACT_LEFT, ACT_RIGHT, ACT_FORWARD, ACT_BACKWARD])
+            # No learned rules - check if we should use vicarious or random
+            if use_vicarious:
+                self.last_inference_info = {
+                    "type": "VICARIOUS (No Rules)",
+                    "details": f"Imitating Bot{other_bot.self_id}: A{vicarious_action}",
+                }
+                self._vicarious_imitation_mode = True
+                return vicarious_action
+            else:
+                self.last_inference_info = {
+                    "type": "UNKNOWN SITUATION",
+                    "details": "Random Action",
+                }
+                self._vicarious_autonomous_streak += 1
+                self._check_vicarious_recovery()
+                return random.choice([ACT_LEFT, ACT_RIGHT, ACT_FORWARD, ACT_BACKWARD])
 
         # Sample from posterior distribution
         best_action = None
         best_sample = -1
         for action, weights in action_options.items():
             w = sum(weights) / len(weights)
+
+            # GL5.1: Apply GWT battery boost (forward toward battery)
+            if gwt_battery_boost > 0 and action == ACT_FORWARD:
+                w += gwt_battery_boost
+
+            # GL5.1: Apply GWT avoidance boost (avoid moving toward other bot)
+            if gwt_other_bot_nearby and other_bot is not None:
+                if action == ACT_FORWARD:
+                    w -= 1.0  # Slight penalty to avoid collision
+
             sample = random.betavariate(max(0.1, w + 1), 2)
             if sample > best_sample:
                 best_sample = sample
                 best_action = action
 
-        if best_action is not None:
+        # GL5.1: Override with vicarious action if conditions met
+        if use_vicarious and vicarious_action is not None:
+            best_action = vicarious_action
+            self.last_inference_info = {
+                "type": "VICARIOUS (Override)",
+                "details": f"Imitating A{vicarious_action} (sat={self._vicarious_saturation})",
+            }
+            self._vicarious_imitation_mode = True
+        elif best_action is not None:
             opts_str = ", ".join(
                 [f"A{k}:{sum(v) / len(v):.1f}" for k, v in action_options.items()]
             )
@@ -483,6 +646,9 @@ class Learner:
                 "type": "THOMPSON SAMPLING",
                 "details": opts_str,
             }
+            self._vicarious_imitation_mode = False
+            self._vicarious_autonomous_streak += 1
+            self._check_vicarious_recovery()
 
         if best_action is not None:
             self.action_history.append(best_action)
@@ -700,6 +866,11 @@ class Learner:
         else:
             self._zero_reward_streak = 0
 
+        # GL5.1: Track for display
+        self._last_reinforcement = reward
+        if text_command and text_command.strip():
+            self._last_command_taught = text_command.strip().upper()
+
         # Invalidate situational graph cache when new learning occurs
         self._situational_graph_cache = None
 
@@ -738,6 +909,65 @@ class Learner:
                 command_id=cmd_id,
                 memory_type=MEMORY_SEMANTIC,
             )
+
+            # GL5.1: Self-labeling - Learn action concepts without commands
+            # ==========================================================
+            # When executing an action (even without a command), the robot
+            # creates a concept for that action. This allows self-reference
+            # and the ability to compose complex plans from simple actions.
+            action_names = {0: "LEFT", 1: "RIGHT", 2: "FORWARD", 3: "BACKWARD"}
+            action_concept = action_names.get(action, f"ACT_{action}")
+
+            # Create self-action concept (e.g., "I_DID_FORWARD")
+            self_action_id = self.memory.get_or_create_concept_id(
+                f"SELF_{action_concept}"
+            )
+            if self_action_id:
+                # Associate self-action with the same action (meta-learning)
+                self.memory.add_rule(
+                    perc_id,
+                    action,
+                    weight=base_weight * 0.5,  # Weaker than command, but still learns
+                    next_perception=None,
+                    command_id=self_action_id,
+                    memory_type=MEMORY_SEMANTIC,
+                )
+
+        # 1.2 GL5.1: Self-labeling for autonomous actions (no command given)
+        # ===================================================================
+        # When robot acts autonomously (no text command), it still learns
+        # to label its own actions, enabling self-awareness and planning.
+        if not text_command or not text_command.strip():
+            action_names = {0: "LEFT", 1: "RIGHT", 2: "FORWARD", 3: "BACKWARD"}
+            action_concept = action_names.get(action, f"ACT_{action}")
+
+            # Create or retrieve self-action concept
+            self_action_id = self.memory.get_or_create_concept_id(
+                f"SELF_{action_concept}"
+            )
+
+            # Learn: in this perception, "SELF_FORWARD" means do FORWARD
+            # This creates a self-referential action concept
+            self.memory.add_rule(
+                perc_id,
+                action,
+                weight=3.0,  # Moderate learning for self-actions
+                next_perception=None,
+                command_id=self_action_id,
+                memory_type=MEMORY_SEMANTIC,
+            )
+
+            # Track action sequence for plan composition
+            if not hasattr(self, "_action_sequence_buffer"):
+                self._action_sequence_buffer = []
+            self._action_sequence_buffer.append((perc_id, action, reward))
+
+            # Buffer limit - keep last 10 actions
+            if len(self._action_sequence_buffer) > 10:
+                self._action_sequence_buffer.pop(0)
+
+            # Compose macros from repeated patterns
+            self._try_compose_macro()
 
         # 1.5 GL5: Learn objectives from experience
         # ==========================================
@@ -1137,3 +1367,798 @@ class Learner:
                     return
 
         self.stagnant = False
+
+    def _try_compose_macro(self):
+        """
+        GL5.1: Attempts to compose hierarchical macros from repeated action sequences.
+        Optimized to use database-backed intermediate memory for larger context.
+        """
+        # Fetch recent history from intermediate memory instead of just small buffer
+        try:
+            cur = self.memory.conn.cursor()
+            cur.execute(
+                "SELECT perception, action, reward FROM intermediate_memory ORDER BY id DESC LIMIT 50"
+            )
+            rows = cur.fetchall()
+            if len(rows) < 10:
+                # Fallback to in-memory buffer if not enough DB history
+                if not hasattr(self, "_action_sequence_buffer") or len(self._action_sequence_buffer) < 3:
+                    return
+                buffer = self._action_sequence_buffer
+            else:
+                # Convert DB rows to buffer format (perception_id, action, reward)
+                # Reverse to get chronological order (oldest first)
+                buffer = [(r[0], r[1], r[2]) for r in reversed(rows)]
+        except Exception:
+            if not hasattr(self, "_action_sequence_buffer") or len(self._action_sequence_buffer) < 3:
+                return
+            buffer = self._action_sequence_buffer
+
+        sequence_lengths = [2, 3, 4]  # Extended to length 4
+        for seq_len in sequence_lengths:
+            if len(buffer) < seq_len * 2:  # Need at least 2 occurrences
+                continue
+
+            sequence_counts = {}
+            for i in range(len(buffer) - seq_len + 1):
+                seq = tuple(a for _, a, _ in buffer[i : i + seq_len])
+                rewards = [r for _, _, r in buffer[i : i + seq_len]]
+                avg_reward = sum(rewards) / len(rewards) if rewards else 0
+                start_perc = buffer[i][0]
+
+                if seq not in sequence_counts:
+                    sequence_counts[seq] = {"count": 0, "avg_reward": 0, "start_percs": []}
+                
+                sequence_counts[seq]["count"] += 1
+                sequence_counts[seq]["avg_reward"] = (
+                    sequence_counts[seq]["avg_reward"] * 0.7 + avg_reward * 0.3
+                )
+                sequence_counts[seq]["start_percs"].append(start_perc)
+
+            for seq, data in sequence_counts.items():
+                # Higher threshold for longer sequences
+                min_count = 2 if seq_len <= 3 else 3
+                if data["count"] >= min_count and data["avg_reward"] >= 1.0:
+                    action_names = {0: "L", 1: "R", 2: "F", 3: "B"}
+                    seq_str = "_".join(action_names.get(a, str(a)) for a in seq)
+                    macro_name = f"MACRO_{seq_str}"
+
+                    macro_id = self.memory.get_or_create_concept_id(macro_name)
+                    actions = list(seq)
+                    
+                    # Create macro rules for the most frequent starting perceptions
+                    for start_perc in set(data["start_percs"][:3]):
+                        self.memory.add_rule(
+                            start_perc,
+                            actions[0],
+                            weight=12.0,  # Increased weight for validated macros
+                            is_composite=1,
+                            macro_actions=actions,
+                            command_id=macro_id,
+                            memory_type=MEMORY_SEMANTIC,
+                        )
+
+                    for idx, action in enumerate(actions):
+                        if idx < len(buffer):
+                            step_perc = buffer[idx][0]
+                            self.memory.add_rule(
+                                step_perc,
+                                action,
+                                weight=5.0,
+                                command_id=macro_id,
+                                memory_type=MEMORY_EPISODIC,
+                            )
+
+    def _build_action_concept_network(self):
+        """
+        GL5.1: Builds a network of action concepts for self-reference and planning.
+        """
+        if not hasattr(self, "_action_sequence_buffer"):
+            return {}
+
+        action_names = {0: "LEFT", 1: "RIGHT", 2: "FORWARD", 3: "BACKWARD"}
+        concept_actions = {}
+
+        for _, action, _ in self._action_sequence_buffer:
+            action_name = action_names.get(action, f"ACT_{action}")
+            self_id = self.memory.get_or_create_concept_id(f"SELF_{action_name}")
+            if self_id:
+                concept_actions[f"SELF_{action_name}"] = action
+
+        turn_id = self.memory.get_or_create_concept_id("SELF_TURN")
+        if turn_id:
+            concept_actions["SELF_TURN"] = {"LEFT": 0, "RIGHT": 1}
+
+        move_id = self.memory.get_or_create_concept_id("SELF_MOVE")
+        if move_id:
+            concept_actions["SELF_MOVE"] = {"FORWARD": 2, "BACKWARD": 3}
+
+        return concept_actions
+
+    def get_composed_plans(self):
+        """
+        GL5.1: Returns learned composed plans for display/debugging.
+        """
+        rules = self.memory.get_rules(memory_type=MEMORY_SEMANTIC)
+        macros = []
+
+        for r in rules:
+            if r.get("is_composite") == 1 and r.get("macro_actions"):
+                try:
+                    actions = json.loads(r["macro_actions"])
+                    cmd_text = r.get("command_text", "UNKNOWN")
+                    macros.append(
+                        {
+                            "name": cmd_text if cmd_text else f"Macro_{r['id']}",
+                            "actions": actions,
+                            "weight": r["weight"],
+                        }
+                    )
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+        return macros
+
+    def infer_fuzzy_action(self, robot, other_bot=None, gwt_context=None):
+        """
+        GL5.1: Fuzzy inference for action selection.
+
+        Uses the fuzzy inference system to combine multiple perceptual
+        variables and derive action recommendations with fuzzy strengths.
+
+        This provides more flexible and nuanced action selection than
+        hard boolean rules.
+
+        GL5.1: gwt_context provides GWT conscious content for integration
+        with long-range vision (nearest battery, other bot position).
+
+        Args:
+            robot: The Robot instance
+            other_bot: Optional other robot for context
+            gwt_context: Optional GWT cognitive cycle result
+
+        Returns:
+            tuple: (action, confidence) or (None, 0.0)
+        """
+        state = robot.get_state(other_bot)
+
+        # Build fuzzy inputs from perception
+        fuzzy_inputs = {
+            "hunger": robot.hunger,
+            "tiredness": robot.tiredness,
+            "battery_distance": state.get("batt_distance", 15) or 15,
+        }
+
+        # GL5.1: Add GWT long-range vision inputs
+        if gwt_context and isinstance(gwt_context, dict):
+            vision = gwt_context.get("vision", {})
+            if vision.get("nearest_battery_dist"):
+                fuzzy_inputs["gwt_battery_distance"] = vision["nearest_battery_dist"]
+            if vision.get("other_bot"):
+                fuzzy_inputs["other_bot_visible"] = 1.0
+            else:
+                fuzzy_inputs["other_bot_visible"] = 0.0
+
+        # Add wall distances
+        raw_dist = state.get("raw_distances", {})
+        for direction, dist in raw_dist.items():
+            fuzzy_inputs[f"wall_{direction}"] = dist
+
+        # Get reasoning trace
+        trace = self.fuzzy_engine.get_fuzzy_reasoning_trace(fuzzy_inputs)
+
+        # Build fuzzy rules from memory and RFT frames
+        action_rules = []
+        rules = self.memory.get_rules()
+
+        for r in rules:
+            action = r.get("target_action")
+            weight = r.get("weight", 1.0)
+            cmd_id = r.get("command_id")
+
+            if action is not None:
+                # Normalize weight to [0, 1]
+                strength = min(1.0, max(0.0, weight / 20.0))
+                action_rules.append((strength, action, strength))
+
+        # Check RFT frames for derived rules
+        frames = self.memory.get_all_frames()
+        for frame in frames:
+            derived_rule = self.fuzzy_rft.derive_fuzzy_rule_from_frame(frame, rules)
+            if derived_rule:
+                action_rules.append(
+                    (
+                        derived_rule.weight,
+                        list(derived_rule.consequent.keys())[0],
+                        derived_rule.weight,
+                    )
+                )
+
+        # Fuzzy inference
+        action, confidence = self.fuzzy_engine.infer_action_fuzzy(
+            fuzzy_inputs, action_rules
+        )
+
+        return action, confidence
+
+    def learn_fuzzy_relations(self):
+        """
+        GL5.1: Learn fuzzy relations between concepts from co-occurrence.
+
+        Analyzes learned rules and frames to create fuzzy relations
+        with continuous strength values.
+        """
+        rules = self.memory.get_rules()
+
+        concept_cooccur = defaultdict(lambda: {"count": 0, "total": 0})
+
+        for r in rules:
+            cmd_id = r.get("command_id")
+            if cmd_id is None:
+                continue
+            action = r.get("target_action")
+            weight = r.get("weight", 1.0)
+
+            for other_r in rules:
+                other_cmd = other_r.get("command_id")
+                if other_cmd and other_cmd != cmd_id:
+                    other_action = other_r.get("target_action")
+                    if action == other_action:
+                        key = tuple(sorted([cmd_id, other_cmd]))
+                        concept_cooccur[key]["count"] += weight
+                    concept_cooccur[key]["total"] += abs(weight)
+
+        for (c1, c2), data in concept_cooccur.items():
+            if data["total"] > 0:
+                strength = data["count"] / data["total"]
+                self.fuzzy_engine.add_relation(c1, c2, "SIM", strength)
+
+    def get_fuzzy_status(self):
+        """
+        GL5.1: Returns fuzzy inference system status for debugging.
+
+        Returns:
+            dict: Status information about fuzzy reasoning
+        """
+        return {
+            "fuzzy_sets": list(self.fuzzy_engine.fuzzy_sets.keys()),
+            "relation_count": len(self.fuzzy_engine.relation_network),
+            "rule_count": len(self.fuzzy_engine.rules),
+        }
+
+    def _process_vicarious_learning(self, robot, other_bot):
+        """
+        GL5.1: Processes vicarious (observational) learning when another robot is nearby.
+
+        When within proximity threshold, the robot observes the other robot's actions
+        and may imitate them. After imitating an action sequence 3 times, the robot
+        transitions to autonomous execution of that learned behavior.
+
+        The saturation mechanism ensures the robot doesn't become dependent on imitation:
+        - Saturation increases each time we imitate
+        - When saturation exceeds threshold, we prefer autonomous actions
+        - Autonomous actions gradually reduce saturation
+
+        Args:
+            robot: The observer robot
+            other_bot: The demonstrator robot (to observe)
+
+        Returns:
+            int: The action to imitate, or None if no imitation should occur
+        """
+        from constants import (
+            VICARIOUS_PROXIMITY_THRESHOLD,
+            VICARIOUS_IMITATION_REPETITIONS,
+        )
+
+        if not hasattr(other_bot, "last_action") or other_bot.last_action is None:
+            return None
+
+        dist = abs(robot.x - other_bot.x) + abs(robot.y - other_bot.y)
+
+        if dist > VICARIOUS_PROXIMITY_THRESHOLD:
+            self._vicarious_imitation_mode = False
+            return None
+
+        demonstrator_id = other_bot.self_id
+        self._vicarious_last_demonstrator = demonstrator_id
+
+        observed_action = other_bot.last_action
+
+        if observed_action is None:
+            return None
+
+        if len(self._vicarious_observed_actions) >= VICARIOUS_ACTION_MEMORY_SIZE:
+            self._vicarious_observed_actions.pop(0)
+        self._vicarious_observed_actions.append(observed_action)
+
+        if observed_action not in self._vicarious_imitated_count:
+            self._vicarious_imitated_count[observed_action] = 0
+
+        imitation_count = self._vicarious_imitated_count.get(observed_action, 0)
+
+        if imitation_count < VICARIOUS_IMITATION_REPETITIONS:
+            self._vicarious_imitated_count[observed_action] = imitation_count + 1
+            self._vicarious_saturation = min(100, self._vicarious_saturation + 2)
+            return observed_action
+
+        return None
+
+    def _check_vicarious_recovery(self):
+        """
+        GL5.1: Decreases imitation saturation after autonomous actions.
+
+        Each autonomous action reduces saturation slightly. After enough
+        consecutive autonomous actions, saturation fully resets, allowing
+        the robot to be receptive to new demonstrations.
+        """
+        from constants import VICARIOUS_SATURATION_RECOVERY
+
+        if self._vicarious_autonomous_streak >= VICARIOUS_SATURATION_RECOVERY:
+            reduction = min(self._vicarious_saturation, 20)
+            self._vicarious_saturation = max(0, self._vicarious_saturation - reduction)
+
+            if self._vicarious_saturation == 0:
+                self._vicarious_autonomous_streak = 0
+                self._vicarious_imitated_count.clear()
+
+    def learn_vicarious(self, robot, action, reward, other_bot):
+        """
+        GL5.1: Learns from vicarious (observed) experiences.
+
+        When imitating another robot, the observer learns from the outcomes
+        of those actions. Positive outcomes strengthen the tendency to imitate
+        similar actions in the future.
+
+        Args:
+            robot: The observer robot
+            action: The action that was taken (potentially imitated)
+            reward: The outcome of the action
+            other_bot: The demonstrator robot
+        """
+        from constants import VICARIOUS_LEARNING_RATE, VICARIOUS_IMITATION_REWARD
+
+        if not self._vicarious_imitation_mode:
+            return
+
+        state = robot.get_state(other_bot)
+        fuzzy_vector = self.fuzzy_processor.get_feature_vector(state)
+        perc_id = json.dumps(fuzzy_vector)
+
+        demonstrator_id = getattr(other_bot, "self_id", None)
+        if demonstrator_id is None:
+            return
+
+        action_was_imitated = action in self._vicarious_imitated_count
+
+        if reward > 0 and action_was_imitated:
+            vicarious_reward = VICARIOUS_IMITATION_REWARD + (reward * 0.5)
+            self.memory.add_rule(
+                perc_id,
+                action,
+                weight=vicarious_reward * VICARIOUS_LEARNING_RATE,
+                next_perception=None,
+                command_id=None,
+                memory_type=MEMORY_EPISODIC,
+            )
+            self.objective_values[perc_id] = (
+                self.objective_values.get(perc_id, 0) + vicarious_reward * 0.1
+            )
+
+        if reward < -3:
+            self._vicarious_saturation = min(100, self._vicarious_saturation + 5)
+
+    def get_vicarious_status(self):
+        """
+        GL5.1: Returns the current vicarious learning status for display.
+
+        Returns:
+            dict: Status information about imitation state
+        """
+        return {
+            "enabled": self.vicarious_enabled,
+            "saturation": self._vicarious_saturation,
+            "in_imitating_mode": self._vicarious_imitation_mode,
+            "observed_actions": len(self._vicarious_observed_actions),
+            "imitated_counts": dict(self._vicarious_imitated_count),
+            "autonomous_streak": self._vicarious_autonomous_streak,
+            "last_demonstrator": self._vicarious_last_demonstrator,
+        }
+
+    def get_last_activity(self):
+        """
+        GL5.1: Returns last reinforcement and command for display.
+        """
+        return {
+            "last_reinforcement": getattr(self, "_last_reinforcement", 0),
+            "last_command": getattr(self, "_last_command_taught", None),
+            "sleep_triggered": getattr(self, "_last_sleep_triggered", False),
+        }
+
+    def reset_vicarious_state(self):
+        """
+        GL5.1: Resets all vicarious learning state.
+
+        Called when switching bots or resetting the simulation to ensure
+        clean state for the new robot.
+        """
+        self._vicarious_observed_actions.clear()
+        self._vicarious_imitated_count.clear()
+        self._vicarious_saturation = 0
+        self._vicarious_autonomous_streak = 0
+        self._vicarious_last_demonstrator = None
+        self._vicarious_imitation_mode = False
+        self._vicarious_current_sequence.clear()
+
+    # =========================================================================
+    # GL5.1: Hearing System (Social Learning through Sound)
+    # =========================================================================
+
+    def sing_action(self, action: int) -> str:
+        """
+        GL5.1: "Canta" la acción ejecutada.
+        El robot produce un sonido que representa su acción.
+
+        Args:
+            action: The action performed (ACT_LEFT, ACT_RIGHT, etc.)
+
+        Returns:
+            str: The song/sound that was produced
+        """
+        from constants import ACTION_SONGS
+
+        song = ACTION_SONGS.get(action, f"ACTION_{action}")
+        self._last_sang_action = song
+        return song
+
+    def process_heard_songs(self, robot, other_bot) -> list:
+        """
+        GL5.1: Procesa los sonidos escuchados del otro robot.
+        Calcula el "volumen" basado en la distancia y registra las asociaciones.
+
+        Args:
+            robot: The hearing robot (self)
+            other_bot: The robot whose sounds we're hearing
+
+        Returns:
+            list: Songs heard this cycle
+        """
+        from constants import (
+            HEARING_MAX_DISTANCE,
+            HEARING_SONG_VOLUME_BASE,
+            HEARING_SONG_VOLUME_DECAY,
+            ACTION_SONGS,
+        )
+
+        if other_bot is None:
+            return []
+
+        dist = abs(robot.x - other_bot.x) + abs(robot.y - other_bot.y)
+
+        if dist > HEARING_MAX_DISTANCE:
+            self._heard_this_cycle = []
+            return []
+
+        volume = max(0.0, HEARING_SONG_VOLUME_BASE - dist * HEARING_SONG_VOLUME_DECAY)
+
+        heard_song = getattr(other_bot, "_last_sang_action", None)
+
+        if heard_song is None:
+            self._heard_this_cycle = []
+            return []
+
+        self._heard_this_cycle = [(heard_song, volume)]
+
+        self._hearing_sequence.append(heard_song)
+        if len(self._hearing_sequence) > 20:
+            self._hearing_sequence.pop(0)
+
+        return [(heard_song, volume)]
+
+    def learn_from_hearing(self, robot, action: int, reward: int, other_bot) -> None:
+        """
+        GL5.1: Aprende de los sonidos escuchados.
+        Asocia los sonidos con acciones y resultados.
+
+        Args:
+            robot: The hearing robot
+            action: Action performed
+            reward: Outcome of the action
+            other_bot: The bot that was heard
+        """
+        from constants import HEARING_LEARNING_RATE
+
+        if not self._heard_this_cycle or other_bot is None:
+            return
+
+        for heard_song, volume in self._heard_this_cycle:
+            perc = self.fuzzy_processor.get_feature_vector(robot.get_state(other_bot))
+            perc_id = json.dumps(perc)
+
+            self.memory.add_hearing_memory(
+                heard_song=heard_song,
+                heard_from_bot=getattr(other_bot, "self_id", 0),
+                associated_action=action,
+                context_perception=perc_id,
+                reward_outcome=reward,
+            )
+
+            if volume > 0.3:
+                belief_key = f"{heard_song}_{getattr(other_bot, 'self_id', 0)}"
+                current = self._song_action_beliefs.get(belief_key, {})
+                if action not in current:
+                    current[action] = 0
+                current[action] = min(
+                    1.0, current[action] + volume * HEARING_LEARNING_RATE
+                )
+                self._song_action_beliefs[belief_key] = current
+
+                self.memory.reinforce_hearing_memory(
+                    heard_song, getattr(other_bot, "self_id", 0), reward
+                )
+
+    def get_heard_action_association(self, heard_song: str) -> tuple:
+        """
+        GL5.1: Obtiene la acción más probable asociada con un sonido.
+
+        Args:
+            heard_song: The song to look up
+
+        Returns:
+            tuple: (action, confidence) or (None, 0.0)
+        """
+        associations = self.memory.get_song_action_association(heard_song)
+        if not associations:
+            return (None, 0.0)
+
+        best = max(associations, key=lambda x: x["association_strength"])
+        return (best["associated_action"], best["association_strength"])
+
+    def get_hearing_status(self) -> dict:
+        """
+        GL5.1: Retorna el estado del sistema de audición para display.
+
+        Returns:
+            dict: Hearing system status
+        """
+        heard_memories = self.memory.get_heard_songs(min_strength=0.3)
+        return {
+            "heard_this_cycle": self._heard_this_cycle,
+            "sequence_length": len(self._hearing_sequence),
+            "beliefs_count": len(self._song_action_beliefs),
+            "total_heard_memories": len(heard_memories),
+            "last_sang": self._last_sang_action,
+        }
+
+    def sing_for_other(self, robot) -> str:
+        """
+        GL5.1: El robot "canta" su última acción para que el otro lo oiga.
+
+        Args:
+            robot: The robot whose action to sing
+
+        Returns:
+            str: The song that was sung
+        """
+        if hasattr(robot, "_last_sang_action") and robot._last_sang_action:
+            return robot._last_sang_action
+        return None
+
+    # =========================================================================
+    # GL5.1: Imagination Mode (Abstract Reasoning)
+    # =========================================================================
+
+    def check_imagination_trigger(self, reward: int) -> bool:
+        """
+        GL5.1: Verifica si el robot debe entrar en modo imaginación.
+        Se activa después de IDLE_THRESHOLD turnos sin reward positivo.
+
+        Args:
+            reward: Current reward
+
+        Returns:
+            bool: True if imagination mode should activate
+        """
+        if not self._imagination_enabled:
+            return False
+
+        if reward > 0:
+            self._idle_counter = 0
+            return False
+
+        self._idle_counter += 1
+        if self._idle_counter >= IMAGINATION_IDLE_THRESHOLD:
+            self._idle_counter = 0
+            return True
+
+        return False
+
+    def enter_imagination_mode(self) -> None:
+        """
+        GL5.1: Entra en modo imaginación.
+        El robot reorganiza su conocimiento para crear abstracciones.
+        """
+        if not self._imagination_enabled:
+            return
+
+        self._imagination_mode = True
+        self._imagination_cycles = 0
+        print(f"Entering imagination mode... (idle for {self._idle_counter} turns)")
+        self._idle_counter = 0
+
+    def run_imagination_cycle(self) -> int:
+        """
+        GL5.1: Ejecuta un ciclo de imaginación.
+        Fusiona reglas similares, generaliza patrones, y crea abstracciones.
+
+        Returns:
+            int: Number of new productions created
+        """
+        if not self._imagination_mode:
+            return 0
+
+        self._imagination_cycles += 1
+        productions_created = 0
+
+        if self._imagination_cycles >= IMAGINATION_CYCLE_DURATION:
+            self.exit_imagination_mode()
+            return productions_created
+
+        rules = self.memory.get_rules(limit=1000)
+        if len(rules) < 5:
+            return 0
+
+        # Optimization: Sort and group by action, favoring high-weight rules
+        rule_groups = {}
+        for r in rules:
+            action = r.get("target_action")
+            weight = r.get("weight", 0)
+            if action is not None and weight > 2.0:  # Increased threshold for quality
+                if action not in rule_groups:
+                    rule_groups[action] = []
+                rule_groups[action].append(r)
+
+        for action, group in rule_groups.items():
+            # Sort group by weight descending to favor successful experiences
+            group.sort(key=lambda x: x.get("weight", 0), reverse=True)
+            
+            if len(group) >= 2 and random.random() < IMAGINATION_ABSTRACTION_RATE:
+                # Pick one from top 30% and one from rest (for diversity + quality)
+                top_idx = random.randint(0, max(0, len(group) // 3))
+                r1 = group[top_idx]
+                r2 = random.choice(group)
+                
+                if r1["id"] == r2["id"]:
+                    continue
+
+                perc1_raw = r1["perception_pattern"]
+                perc2_raw = r2["perception_pattern"]
+
+                if isinstance(perc1_raw, str):
+                    try:
+                        perc1 = json.loads(perc1_raw)
+                    except json.JSONDecodeError:
+                        perc1 = {}
+                else:
+                    perc1 = perc1_raw if perc1_raw else {}
+
+                if isinstance(perc2_raw, str):
+                    try:
+                        perc2 = json.loads(perc2_raw)
+                    except json.JSONDecodeError:
+                        perc2 = {}
+                else:
+                    perc2 = perc2_raw if perc2_raw else {}
+
+                if not isinstance(perc1, dict) or not isinstance(perc2, dict):
+                    continue
+
+                common_keys = set(perc1.keys()) & set(perc2.keys())
+                if len(common_keys) >= 1:
+                    fused_perc = {}
+                    for key in common_keys:
+                        if perc1.get(key) == perc2.get(key):
+                            fused_perc[key] = perc1[key]
+                        else:
+                            if random.random() < IMAGINATION_GENERALIZATION_RATE:
+                                fused_perc[key] = "ANY"
+
+                    if fused_perc:
+                        fused_perc_id = json.dumps(fused_perc)
+                        confidence = (r1.get("weight", 1) + r2.get("weight", 1)) / 20.0
+
+                        prod_id = self.memory.add_cognitive_production(
+                            production_type="ABSTRACTION",
+                            name=f"ABSTRACT_A{action}_{len(common_keys)}keys",
+                            component_rules=[r1["id"], r2["id"]],
+                            abstraction_level=2,
+                            confidence=min(1.0, confidence),
+                            is_imagined=True,
+                            description=f"Fused from 2 rules with {len(common_keys)} common keys",
+                        )
+                        productions_created += 1
+                        self._imagined_productions.append(prod_id)
+
+        sequences = self._detect_action_sequences(rules)
+        for seq in sequences:
+            if len(seq["actions"]) >= 2 and seq["count"] >= 2:
+                prod_id = self.memory.add_cognitive_production(
+                    production_type="GENERALIZATION",
+                    name=f"PATTERN_{seq['seq_str']}",
+                    component_rules=[],
+                    abstraction_level=1,
+                    confidence=min(1.0, seq["avg_reward"] / 10.0),
+                    is_imagined=True,
+                    description=f"Action pattern seen {seq['count']} times",
+                )
+                productions_created += 1
+                self._imagined_productions.append(prod_id)
+
+        return productions_created
+
+    def _detect_action_sequences(self, rules: list) -> list:
+        """Detects common action sequences from recent history."""
+        chrono = []
+        try:
+            cur = self.memory.conn.cursor()
+            cur.execute(
+                "SELECT action, reward FROM chrono_memory ORDER BY id DESC LIMIT 50"
+            )
+            chrono = cur.fetchall()
+        except Exception:
+            pass
+
+        sequences = {}
+        for i in range(len(chrono) - 1):
+            action1 = chrono[i][0]
+            action2 = chrono[i + 1][0]
+            reward = chrono[i][1]
+            seq_key = f"{action1}_{action2}"
+            if seq_key not in sequences:
+                sequences[seq_key] = {"count": 0, "total_reward": 0}
+            sequences[seq_key]["count"] += 1
+            sequences[seq_key]["total_reward"] += reward
+
+        result = []
+        for seq_key, data in sequences.items():
+            actions = [int(a) for a in seq_key.split("_")]
+            avg_reward = data["total_reward"] / max(1, data["count"])
+            result.append(
+                {
+                    "seq_str": seq_key,
+                    "actions": actions,
+                    "count": data["count"],
+                    "avg_reward": avg_reward,
+                }
+            )
+
+        return result
+
+    def exit_imagination_mode(self) -> None:
+        """
+        GL5.1: Sale del modo imaginación.
+        """
+        self._imagination_mode = False
+        print(
+            f"Exiting imagination mode. Created {len(self._imagined_productions)} new productions."
+        )
+        self._imagined_productions = []
+
+    def get_imagination_status(self) -> dict:
+        """
+        GL5.1: Retorna el estado del modo imaginación para display.
+
+        Returns:
+            dict: Imagination mode status
+        """
+        cog_stats = self.memory.get_cognitive_stats()
+        return {
+            "enabled": self._imagination_enabled,
+            "active": self._imagination_mode,
+            "cycles": self._imagination_cycles,
+            "idle_counter": self._idle_counter,
+            "imagined_this_session": len(self._imagined_productions),
+            "total_imagined": cog_stats.get("imagined_productions", 0),
+            "total_productions": cog_stats.get("total_productions", 0),
+            "avg_confidence": cog_stats.get("avg_confidence", 0),
+        }

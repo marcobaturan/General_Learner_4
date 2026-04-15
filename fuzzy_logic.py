@@ -55,27 +55,18 @@ class FBN:
     def fuzzify_battery(self, dist):
         """Fuzzification of battery distance."""
         if dist is None or dist > 15:
-            return {"NEAR": 0, "FAR": 0, "ABSENT": 1.0}
+            return {
+                "NEAR": 0,
+                "FAR": 0,
+                "ABSENT": 1.0,
+                "MUY_CERCA": 0,
+                "LEJOS": 0,
+                "AUSENTE": 1.0,
+            }
         return {
             "VERY_NEAR": self.trapezoidal(dist, 0, 0, 1.5, 3.0),
             "FAR": self.trapezoidal(dist, 2.0, 5.0, 20, 20),
             "NEAR": self.trapezoidal(dist, 0, 0, 3.0, 5.0),
-        }
-
-    def fuzzify_hunger(self, val):
-        """Fuzzifies hunger/tiredness (0 to 150)."""
-        return {
-            "LOW": self.trapezoidal(val, 0, 0, 30, 60),
-            "MEDIUM": self.triangular(val, 40, 75, 110),
-            "HIGH": self.trapezoidal(val, 90, 120, 200, 200),
-        }
-
-    def fuzzify_battery(self, dist):
-        """Fuzzifies battery proximity."""
-        if dist is None:  # No battery detected
-            return {"MUY_CERCA": 0, "LEJOS": 0, "AUSENTE": 1.0}
-
-        return {
             "MUY_CERCA": self.trapezoidal(dist, 0, 0, 1.5, 3.0),
             "LEJOS": self.trapezoidal(dist, 2.0, 5.0, 20, 20),
             "AUSENTE": 0.0,
@@ -103,19 +94,25 @@ class FBN:
         # GL5: Mirror detection - check if mirror is in any direction
         perception = robot_state.get("perception", [])
         if perception:
-            # Check 3x3 grid for mirror
+            has_mirror = False
+            has_reset = False
             for row in perception:
                 for cell in row:
                     if cell == MIRROR_ID:
-                        # Mirror detected!
-                        fuzzy_state["MIRROR"] = {"NEAR": 1.0, "FAR": 0.0}
-                        break
-            else:
-                if "MIRROR" not in fuzzy_state:
-                    fuzzy_state["MIRROR"] = {"NEAR": 0.0, "FAR": 1.0}
+                        has_mirror = True
+                    if cell == RESET_BUTTON_ID:
+                        has_reset = True
+            fuzzy_state["MIRROR"] = {
+                "NEAR": 1.0 if has_mirror else 0.0,
+                "FAR": 0.0 if has_mirror else 1.0,
+            }
+            fuzzy_state["RESET_BUTTON"] = {
+                "NEAR": 1.0 if has_reset else 0.0,
+                "FAR": 0.0 if has_reset else 1.0,
+            }
         else:
-            if "MIRROR" not in fuzzy_state:
-                fuzzy_state["MIRROR"] = {"NEAR": 0.0, "FAR": 1.0}
+            fuzzy_state["MIRROR"] = {"NEAR": 0.0, "FAR": 1.0}
+            fuzzy_state["RESET_BUTTON"] = {"NEAR": 0.0, "FAR": 1.0}
 
         fuzzy_state["NEED_ENERGY"] = self.fuzzify_hunger(hunger)
         fuzzy_state["NEED_REST"] = self.fuzzify_hunger(tiredness)

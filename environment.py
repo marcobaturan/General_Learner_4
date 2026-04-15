@@ -1,3 +1,44 @@
+"""
+################################################################################
+#                                                                              #
+#      ______ _   ___      _______ _____   ____  _   _ __  __ ______ _   _     #
+#     |  ____| \ | \ \    / /_   _|  __ \ / __ \| \ | |  \/  |  ____| \ | |    #
+#     | |__  |  \| |\ \  / /  | | | |__) | |  | |  \| | \  / | |__  |  \| |    #
+#     |  __| | . ` | \ \/ /   | | |  _  /| |  | | . ` | |\/| |  __| | . ` |    #
+#     | |____| |\  |  \  /   _| |_| | \ \| |__| | |\  | |  | | |____| |\  |    #
+#     |______|_| \_|   \/   |_____|_|  \_\\____/|_| \_|_|  |_|______|_| \_|    #
+#                                                                              #
+################################################################################
+
+ENVIRONMENT MODULE - THE SYNTHETIC HABITAT
+==========================================
+
+This module defines the spatial environment (the Labyrinth) where the 
+cognitive agents reside and interact.
+
+SCIENTIFIC PRINCIPLES:
+----------------------
+1. TOPOLOGICAL HABITAT:
+   A discrete 2D grid representing the physical constraints of the 
+   world (Walls, Mirrors, Empty Space).
+
+2. PSYCHOSIS PREVENTION (RESET BUTTON):
+   When an agent consumes all batteries (goals), it may enter a 
+   pathological state of random exploration with no learning signals 
+   (Analogous to obsessive-compulsive loops). The 'Reset Button' tile 
+   spawns to provide a new goal and restart the experimental cycle.
+
+3. SITUATIONAL AWARENESS:
+   The environment provides 'Local Perceptions' (3x3 grid) and supports 
+   long-range scanning for the Global Workspace Theory (GWT) module.
+
+4. MULTI-MAZE IDENTITY (MAZE_ID):
+   Each generated maze has a unique cryptographic hash. This allows the 
+   agent to maintain separate cognitive maps for different worlds.
+
+Author: Marco
+"""
+
 import random
 import hashlib
 from constants import *
@@ -5,20 +46,22 @@ from constants import *
 
 class Environment:
     """
-    Manages the 2D grid world where the robot lives.
-    Handles walls, batteries, mirrors, and the robot's spatial awareness.
+    ############################################################################
+    #   ______ _   ___      _______ _____   ____  _   _ __  __ ______ _   _    #
+    #  |  ____| \ | \ \    / /_   _|  __ \ / __ \| \ | |  \/  |  ____| \ | |   #
+    #  | |__  |  \| |\ \  / /  | | | |__) | |  | |  \| | \  / | |__  |  \| |   #
+    #  |  __| | . ` | \ \/ /   | | |  _  /| |  | | . ` | |\/| |  __| | . ` |   #
+    #  | |____| |\  |  \  /   _| |_| | \ \| |__| | |\  | |  | | |____| |\  |   #
+    #  |______|_| \_|   \/   |_____|_|  \_\\____/|_| \_|_|  |_|______|_| \_|   #
+    ############################################################################
 
-    GL5.1 Extensions:
-    ----------------
-    - RESET_BUTTON: Special tile that appears when all batteries consumed
-      to prevent agent psychosis (endless search loop / TOC)
-    - Other bot detection: get_perception_at() can detect other robots
-      via the other_bot parameter, returning ID 99 for the other bot
-
-    Grid Coordinate System:
-    ----------------------
-    (0,0) top-left to (GRID_W-1, GRID_H-1) bottom-right
-    Each cell contains: EMPTY_ID, WALL_ID, BATTERY_ID, MIRROR_ID, RESET_BUTTON_ID
+    The 2D habitat for the General Learner.
+    
+    This class manages:
+    - Grid generation (Random Labyrinths).
+    - Resource placement (Batteries).
+    - Mirror placement (Self-recognition test).
+    - Psychosis prevention (Reset Button spawning).
     """
 
     def __init__(self):

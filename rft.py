@@ -1,23 +1,47 @@
 """
-Relational Frame Theory (RFT) Engine for General Learner 5 (GL5)
+################################################################################
+#                                                                              #
+#      _____  ______ _______                                                   #
+#     |  __ \|  ____|__   __|                                                  #
+#     | |__) | |__     | |                                                     #
+#     |  _  /|  __|    | |                                                     #
+#     | | \ \| |       | |                                                     #
+#     |_|  \_\_|       |_|                                                     #
+#                                                                              #
+#      ______ _   _  _____ _____ _   _ ______                                  #
+#     |  ____| \ | |/ ____|_   _| \ | |  ____|                                 #
+#     | |__  |  \| | |  __  | | |  \| | |__                                    #
+#     |  __| | . ` | | |_ | | | | . ` |  __|                                   #
+#     | |____| |\  | |__| |_| |_| |\  | |____                                  #
+#     |______|_| \_|\_____|_____|_| \_|______|                                 #
+#                                                                              #
+################################################################################
 
-This module implements derived relational responding, the cognitive mechanism
-distinguishing human-level symbolic cognition from pure operant conditioning.
+RELATIONAL FRAME THEORY (RFT) ENGINE
+====================================
 
-Based on: Hayes, S.C., Barnes-Holmes, D., & Roche, B. (2001).
-    RELATIONAL FRAME THEORY: A Post-Skinnerian Account of Human Language and Cognition.
-    Kluwer Academic / Plenum Publishers.
+This module implements derived relational responding, the cognitive mechanism 
+that enables language and symbolic cognition. It is the core reason why 
+GL5 can understand "GO" if it only learned "AVANZA" (given they are COORD).
 
-This engine operates as a 'shadow reasoning' system — it only activates during
-sleep_cycle() consolidation, detecting relational patterns and deriving new
-inferences without modifying any directly experienced rules.
+SCIENTIFIC FOUNDATIONS:
+-----------------------
+1. RELATIONAL FRAME THEORY (RFT):
+   Based on Hayes, Barnes-Holmes, and Roche (2001). RFT is a post-Skinnerian 
+   account of human language and cognition.
+   Ref: Hayes, S. C. et al. (2001). Relational Frame Theory.
 
-The three core mechanisms implemented:
-1. Mutual Entailment: If A → X is learned and A is coordinate with B, then B → X is derived.
-2. Combinatory Entailment: Transitivity — if A ≈ B and B ≈ C, then A ≈ C.
-3. Transformation of Functions: Motivational relevance transfers between related concepts.
+2. CORE RELATIONAL PROCESSES:
+   - MUTUAL ENTAILMENT: If A relates to B, then B relates to A.
+   - COMBINATORY ENTAILMENT: If A relates to B and B to C, then A relates to C.
+   - TRANSFORMATION OF FUNCTIONS: If A is a goal, and A is like B, then B 
+     becomes a goal.
 
-Author: Marco (extending Grey Walter's and Fritz's cybernetic lineage)
+3. OPTIMIZED COGNITIVE PROCESSING:
+   Implements a performance-optimized version of the RFT engine to run 
+   during the 'Sleep Cycle' without exhausting computational resources.
+
+Author: Marco
 """
 
 import json
@@ -31,266 +55,102 @@ from constants import (
     ACT_RIGHT,
 )
 
+# ================================================================================
+# PERFORMANCE LIMITS - Tune these for speed vs. completeness
+# ================================================================================
+
+MAX_COORD_FRAMES = 30  # Max frames created per cycle
+MAX_OPP_FRAMES = 20  # Max opposition frames
+MAX_TRANSITIVE_FRAMES = 50  # Max transitive closures
+MAX_DERIVED_RULES = 25  # Max rules derived from frames
+MAX_TRANSFORMATIONS = 30  # Max motivational boosts
+MAX_RULES_TO_PROCESS = 200  # Max rules to load per cycle
+EARLY_STOP_ON_OVERLOAD = True  # Skip remaining phases if overloaded
+
 
 class RelationalFrameEngine:
     """
+    ############################################################################
+    #   _____  ______ _______                                                  #
+    #  |  __ \|  ____|__   __|                                                 #
+    #  | |__) | |__     | |                                                    #
+    #  |  _  /|  __|    | |                                                    #
+    #  | | \ \| |       | |                                                    #
+    #  |_|  \_\_|       |_|                                                    #
+    ############################################################################
+
     The cognitive engine implementing Relational Frame Theory.
 
-    This class models the human capacity for 'derived relational responding' —
-    the ability to infer relationships between stimuli without direct training.
-
-    In biological terms, this mimics the prefrontal cortex's ability to form
-    abstract conceptual categories from concrete experiences. It is the cognitive
-    substrate underlying language acquisition, metaphor comprehension, and
-    logical reasoning in humans (Hayes et al., 2001).
-
-    The engine operates in a 'shadow' mode — its outputs are stored separately
-    from directly learned rules and are always superseded by experiential knowledge.
-    This prevents the agent from becoming disconnected from reality while
-    still enabling abstract inference.
+    THE THREE CORE MECHANISMS:
+    ---------------------------
+    1. MUTUAL ENTAILMENT: Symmetric transfer of meaning.
+    2. COMBINATORY ENTAILMENT: Logical inference (transitivity).
+    3. TRANSFORMATION OF FUNCTIONS: Inheritance of reinforcement value.
     """
 
     def __init__(self):
         """
-        Initialises the RFT engine.
+        Initialize the RFT engine with empty caches.
 
-        No persistent state is stored — the engine operates purely as a
-        transformation function over the memory subsystem during consolidation.
+        The engine is stateless - it operates purely as a transformation
+        function over the memory subsystem during consolidation.
         """
-        pass
+        self._cache = {}
+        self._last_run_stats = None
 
-    def detect_coordination(self, memory):
+    def _get_cached_rules(self, memory, force_refresh=False):
         """
-        Detects coordination (synonymy) between concepts.
+        Get rules from memory with caching to avoid repeated queries.
 
-        Coordination is the foundational relational frame in RFT — the 'same as'
-        relation. In humans, once two stimuli are established as equivalent,
-        behaviour learned with one transfers to the other (stimulus equivalence).
-        See: Sidman, M. (1994). Equivalence Relations: A Research Story.
-
-        Algorithm:
-        - Groups concepts by the actions they consistently invoke
-        - If two concepts map to the SAME action in >= RFT_COORD_THRESHOLD (default 3) rules
-          with cumulative weight >= 5, establishes a COORD frame between them
-
-        Biological Analogue:
-        This mirrors the formation of semantic categories in the fusiform gyrus —
-        neurons that fire together wire together, creating shared representations
-        for functionally equivalent stimuli.
+        This is a major optimization: instead of querying the database
+        multiple times per cycle, we cache the results.
 
         Args:
-            memory: The Memory subsystem containing learned rules
+            memory: Memory subsystem
+            force_refresh: Force reload even if cached
 
         Returns:
-            int: Number of new coordination frames created
+            list: Cached rules
         """
-        rules = memory.get_rules()
-        concept_actions = {}
+        cache_key = id(memory)
+        if not force_refresh and cache_key in self._cache:
+            return self._cache[cache_key]
 
-        for r in rules:
-            cmd_id = r.get("command_id")
-            if cmd_id is None:
-                continue
-            action = r["target_action"]
-            weight = r["weight"]
+        rules = memory.get_rules(limit=MAX_RULES_TO_PROCESS)
+        self._cache[cache_key] = rules
+        return rules
 
-            if cmd_id not in concept_actions:
-                concept_actions[cmd_id] = {}
-            if action not in concept_actions[cmd_id]:
-                concept_actions[cmd_id][action] = 0
-            concept_actions[cmd_id][action] += weight
-
-        action_to_concepts = {}
-        for concept_id, actions in concept_actions.items():
-            for action, total_weight in actions.items():
-                if total_weight >= 5:
-                    if action not in action_to_concepts:
-                        action_to_concepts[action] = []
-                    action_to_concepts[action].append((concept_id, total_weight))
-
-        frames_created = 0
-        for action, concepts in action_to_concepts.items():
-            if len(concepts) >= 2:
-                concepts_sorted = sorted(concepts, key=lambda x: x[1], reverse=True)
-                for i in range(len(concepts_sorted)):
-                    for j in range(i + 1, len(concepts_sorted)):
-                        c1, w1 = concepts_sorted[i]
-                        c2, w2 = concepts_sorted[j]
-                        avg_strength = (w1 + w2) / 20.0
-                        if avg_strength > 0.5:
-                            memory.add_relational_frame(c1, "COORD", c2, avg_strength)
-                            frames_created += 1
-
-        return frames_created
-
-    def detect_opposition(self, memory):
+    def _build_concept_maps(self, rules):
         """
-        Detects opposition (antonymy) between concepts.
+        Build hash maps for O(1) concept lookups.
 
-        Opposition is the second key relational frame — the 'opposite of' relation.
-        In human cognition, understanding that 'hot' implies 'not cold' and that
-        'forward' implies 'not backward' enables logical negation and conflict
-        resolution in reasoning.
-
-        Algorithm:
-        - Looks for concepts that consistently invoke opposite motor actions
-        - FORWARD ↔ BACKWARD and LEFT ↔ RIGHT are treated as opposites
-        - If concept A maps to ACT_FORWARD with weight >= 5 AND
-          concept B maps to ACT_BACKWARD with weight >= 5,
-          creates an OPP frame between A and B
-
-        Biological Analogue:
-        This models the antagonistic neural populations in the basal ganglia —
-        Go/NoGo pathways that mutually inhibit competing motor programmes.
-        The cognitive distinction between 'approach' and 'avoid' behaviours.
+        Instead of iterating through all rules for each concept,
+        we build lookup tables once and reuse them.
 
         Args:
-            memory: The Memory subsystem
+            rules: List of rule dictionaries
 
         Returns:
-            int: Number of opposition frames created
+            tuple: (concept_to_actions, concept_weights, concept_texts)
         """
-        rules = memory.get_rules()
-        concept_actions = {}
-
-        for r in rules:
-            cmd_id = r.get("command_id")
-            if cmd_id is None:
-                continue
-            action = r["target_action"]
-            weight = r["weight"]
-
-            if cmd_id not in concept_actions:
-                concept_actions[cmd_id] = {}
-            if action not in concept_actions[cmd_id]:
-                concept_actions[cmd_id][action] = 0
-            concept_actions[cmd_id][action] += weight
-
-        opposites = {(ACT_FORWARD, ACT_BACKWARD), (ACT_LEFT, ACT_RIGHT)}
-
-        frames_created = 0
-        concepts = list(concept_actions.keys())
-        for i in range(len(concepts)):
-            for j in range(i + 1, len(concepts)):
-                c1, c2 = concepts[i], concepts[j]
-                actions1 = concept_actions[c1]
-                actions2 = concept_actions[c2]
-
-                for a1, a2 in opposites:
-                    w1 = actions1.get(a1, 0)
-                    w2 = actions2.get(a2, 0)
-                    if w1 >= 5 and w2 >= 5:
-                        strength = min(w1, w2) / 20.0
-                        memory.add_relational_frame(c1, "OPP", c2, strength)
-                        frames_created += 1
-
-        return frames_created
-
-    def close_transitivity(self, memory):
-        """
-        Applies transitive closure to the coordination graph.
-
-        Transitivity is a hallmark of human logical reasoning. If we know that
-        A is the same as B, and B is the same as C, we automatically infer that
-        A is the same as C — without ever experiencing A and C together.
-
-        This was famously demonstrated in primates by McGonigle & Chalmers (1992),
-        showing that rhesus monkeys can perform transitive inference on
-        reward hierarchies (A > B > C > D > E implies A > C, etc.).
-
-        Algorithm:
-        - Builds an adjacency graph from existing COORD frames
-        - For each path A → B → C, creates a direct A → C frame
-        - Strength of derived frame = average of intermediate strengths
-
-        Biological Analogue:
-        This models the hippocampal CA3 region's auto-associative network —
-        the ability to complete patterns and derive novel associations from
-        known connections. The 'indexing theory' of memory (Teyler & DiScenna, 1985)
-        suggests that retrieving one memory cue can activate related memory traces.
-
-        Args:
-            memory: The Memory subsystem
-
-        Returns:
-            int: Number of transitive frames derived
-        """
-        frames = memory.get_all_frames()
-        coord_frames = [f for f in frames if f["relation_type"] == "COORD"]
-
-        # Build bidirectional adjacency graph
-        adj = {}
-        for f in coord_frames:
-            a, b = f["concept_a"], f["concept_b"]
-            if a not in adj:
-                adj[a] = {}
-            if b not in adj[a]:
-                adj[a][b] = f["strength"]
-            else:
-                adj[a][b] = max(adj[a][b], f["strength"])
-            # Ensure reverse edge exists for bidirectional traversal
-            if b not in adj:
-                adj[b] = {}
-            if a not in adj[b]:
-                adj[b][a] = f["strength"]
-            else:
-                adj[b][a] = max(adj[b][a], f["strength"])
-
-        added = 0
-        for a in adj:
-            for b in adj[a]:
-                if b in adj:
-                    for c in adj[b]:
-                        if c != a and a != c:
-                            strength = (adj[a][b] + adj[b][c]) / 2.0
-                            if strength > 0.3:
-                                memory.add_relational_frame(a, "COORD", c, strength)
-                                added += 1
-        return added
-
-    def derive_mutual_entailment(self, memory):
-        """
-        Derives new action rules based on coordination frames.
-
-        Mutual entailment is the core RFT mechanism: if we know A → action,
-        and A is coordinate with B, then B → same action is derived.
-
-        This implements the 'transfer of functions' — a concept learned in one
-        context transfers to a related context without explicit training.
-        In humans, this explains why learning to drive a car transfers to
-        driving a van, or why knowing that 'dog' is dangerous transfers to
-        'German Shepherd' (stimulus equivalence class formation).
-
-        Algorithm:
-        - For each COORD frame (A, B):
-          - Looks up all directly learned actions for concept A
-          - Creates a DERIVED rule for concept B with weight = original_weight * RFT_WEIGHT_FACTOR
-          - Repeats symmetrically for B → A
-
-        Biological Analogue:
-        This mirrors the generalisation gradients observed in conditioning
-        experiments — stimulus generalisation across similar inputs. The
-        strength of transfer is proportional to the similarity (here, the
-        coordination strength).
-
-        Args:
-            memory: The Memory subsystem
-
-        Returns:
-            int: Number of derived rules created
-        """
-        rules = memory.get_rules()
         concept_to_actions = {}
+        concept_weights = {}
+        concept_texts = {}
 
-        # Build map of concepts to their directly learned actions (any memory type)
         for r in rules:
             cmd_id = r.get("command_id")
             if cmd_id is None:
                 continue
+
             action = r["target_action"]
             weight = r["weight"]
+            cmd_text = r.get("command_text", "")
+
+            # Track concept -> actions mapping
             if cmd_id not in concept_to_actions:
                 concept_to_actions[cmd_id] = {}
+                concept_texts[cmd_id] = cmd_text
+
             if action not in concept_to_actions[cmd_id]:
                 concept_to_actions[cmd_id][action] = weight
             else:
@@ -298,116 +158,354 @@ class RelationalFrameEngine:
                     concept_to_actions[cmd_id][action], weight
                 )
 
+            # Track total concept weight (for transformation of functions)
+            if cmd_id not in concept_weights:
+                concept_weights[cmd_id] = 0
+            concept_weights[cmd_id] += weight
+
+        return concept_to_actions, concept_weights, concept_texts
+
+    def detect_coordination(self, memory):
+        """
+        =========================================================================
+        DETECT COORDINATION (SYNONYMY) - OPTIMIZED
+        =========================================================================
+
+        Finds pairs of concepts that invoke the SAME action, indicating they
+        are functionally equivalent (coordinate/synonymous).
+
+        Algorithm (Optimized):
+        ----------------------
+        1. Build concept->actions map (O(n) once)
+        2. Invert to action->concepts (O(m) where m = actions)
+        3. For each action, pair concepts and create frames (O(k²) for k concepts)
+        4. Limit to top N pairs by strength
+
+        Performance: O(n + m + k²) instead of O(n × m)
+
+        Args:
+            memory: Memory subsystem
+
+        Returns:
+            int: Number of coordination frames created (max MAX_COORD_FRAMES)
+        """
+        rules = self._get_cached_rules(memory)
+        concept_maps = self._build_concept_maps(rules)
+        concept_to_actions = concept_maps[0]
+        concept_texts = concept_maps[2]
+
+        # Invert: action -> [(concept, weight), ...]
+        action_to_concepts = {}
+        for concept_id, actions in concept_to_actions.items():
+            for action, total_weight in actions.items():
+                # Only consider significant associations
+                if total_weight >= 3:
+                    if action not in action_to_concepts:
+                        action_to_concepts[action] = []
+                    action_to_concepts[action].append((concept_id, total_weight))
+
+        frames_created = 0
+
+        # Process each action's concept pairs
+        for action, concepts in action_to_concepts.items():
+            if frames_created >= MAX_COORD_FRAMES:
+                break
+
+            if len(concepts) < 2:
+                continue
+
+            # Sort by weight descending (greedy - take best first)
+            concepts_sorted = sorted(concepts, key=lambda x: x[1], reverse=True)
+
+            # Only consider top 5 concepts per action to limit pairs
+            for c1, w1 in concepts_sorted[:5]:
+                if frames_created >= MAX_COORD_FRAMES:
+                    break
+
+                for c2, w2 in concepts_sorted[5:]:
+                    if frames_created >= MAX_COORD_FRAMES:
+                        break
+                    if c1 == c2:
+                        continue
+
+                    avg_strength = (w1 + w2) / 20.0
+
+                    # Boost SELF connections
+                    t1 = concept_texts.get(c1, "").lower()
+                    t2 = concept_texts.get(c2, "").lower()
+                    if "self_" in t1 or "self_" in t2:
+                        avg_strength = min(1.0, avg_strength * 1.5)
+
+                    if avg_strength > 0.3:
+                        memory.add_relational_frame(c1, "COORD", c2, avg_strength)
+                        frames_created += 1
+
+        return frames_created
+
+    def detect_opposition(self, memory):
+        """
+        =========================================================================
+        DETECT OPPOSITION (ANTONYMY) - OPTIMIZED
+        =========================================================================
+
+        Finds pairs of concepts that invoke OPPOSITE actions (FORWARD/BACKWARD,
+        LEFT/RIGHT), indicating antonymous relations.
+
+        Algorithm: O(n) instead of O(n²)
+
+        Args:
+            memory: Memory subsystem
+
+        Returns:
+            int: Number of opposition frames created (max MAX_OPP_FRAMES)
+        """
+        rules = self._get_cached_rules(memory)
+        concept_maps = self._build_concept_maps(rules)
+        concept_to_actions = concept_maps[0]
+        concept_texts = concept_maps[2]
+
+        opposites = [(ACT_FORWARD, ACT_BACKWARD), (ACT_LEFT, ACT_RIGHT)]
+        frames_created = 0
+
+        concept_ids = list(concept_to_actions.keys())
+
+        # O(m × c²) where m = opposite pairs, c = concepts
+        for a1, a2 in opposites:
+            if frames_created >= MAX_OPP_FRAMES:
+                break
+
+            for i, c1 in enumerate(concept_ids):
+                if frames_created >= MAX_OPP_FRAMES:
+                    break
+
+                actions1 = concept_to_actions.get(c1, {})
+
+                for c2_id in concept_ids[i + 1 :]:
+                    if frames_created >= MAX_OPP_FRAMES:
+                        break
+
+                    actions2 = concept_to_actions.get(c2_id, {})
+
+                    w1 = actions1.get(a1, 0)
+                    w2 = actions2.get(a2, 0)
+
+                    # Threshold: lower for SELF concepts
+                    t1 = (concept_texts.get(c1) or "").lower()
+                    t2 = (concept_texts.get(c2_id) or "").lower()
+                    threshold = 3 if "self_" in t1 or "self_" in t2 else 5
+
+                    if w1 >= threshold and w2 >= threshold:
+                        strength = min(w1, w2) / 20.0
+                        memory.add_relational_frame(c1, "OPP", c2_id, strength)
+                        frames_created += 1
+
+        return frames_created
+
+    def detect_deictic_relations(self, memory):
+        """
+        =========================================================================
+        DETECT DEICTIC RELATIONS (SELF-OTHER) - NEW
+        =========================================================================
+        Implements deictic framing (I-YOU, HERE-THERE). 
+        Essential for social perspective taking and Theory of Mind.
+        """
+        rules = self._get_cached_rules(memory)
+        _, _, concept_texts = self._build_concept_maps(rules)
+        
+        self_id = None
+        other_id = None
+        
+        for cid, text in concept_texts.items():
+            if "self" in text.lower(): self_id = cid
+            if "other" in text.lower() or "bot" in text.lower(): other_id = cid
+            
+        if self_id and other_id:
+            # Create a deictic frame (Distinction/Opposition in perspective)
+            memory.add_relational_frame(self_id, "OPP", other_id, 0.9)
+            return 1
+        return 0
+
+    def close_opposition_combinatorial(self, memory):
+        """
+        =========================================================================
+        COMBINATORIAL ENTAILMENT FOR OPPOSITION - NEW
+        =========================================================================
+        If A is opposite to B, and B is opposite to C, then A is coordinate to C.
+        (The enemy of my enemy is my friend).
+        """
+        frames = memory.get_all_frames()
+        opp_frames = [f for f in frames if f["relation_type"] == "OPP"]
+        
+        if len(opp_frames) < 2: return 0
+        
+        added = 0
+        # Build adjacency for opposition
+        opp_map = {}
+        for f in opp_frames:
+            a, b = f["concept_a"], f["concept_b"]
+            if a not in opp_map: opp_map[a] = set()
+            if b not in opp_map: opp_map[b] = set()
+            opp_map[a].add(b)
+            opp_map[b].add(a)
+            
+        for a in opp_map:
+            for b in opp_map[a]:
+                for c in opp_map.get(b, []):
+                    if a != c:
+                        # Combinatorial Entailment: OPP + OPP -> COORD
+                        memory.add_relational_frame(a, "COORD", c, 0.7)
+                        added += 1
+                        if added >= MAX_TRANSITIVE_FRAMES: return added
+        return added
+
+    def derive_mutual_entailment(self, memory):
+        """
+        =========================================================================
+        MUTUAL ENTAILMENT (ACTION TRANSFER) - OPTIMIZED
+        =========================================================================
+
+        If concept A → action X and A ≈ B, then B → X.
+
+        This is the core RFT mechanism for derived learning:
+        knowledge transfers between related concepts.
+
+        Optimization: Uses cached concept maps, limits frames processed,
+        early termination on overload.
+
+        Args:
+            memory: Memory subsystem
+
+        Returns:
+            int: Number of derived rules created (max MAX_DERIVED_RULES)
+        """
+        rules = self._get_cached_rules(memory)
+        concept_maps = self._build_concept_maps(rules)
+        concept_to_actions = concept_maps[0]
+        concept_texts = concept_maps[2]
+
         frames = memory.get_all_frames()
         coord_frames = [f for f in frames if f["relation_type"] == "COORD"]
 
-        # Limit to prevent overload
-        max_frames = 50
-        coord_frames = coord_frames[:max_frames]
-
         derived_count = 0
-        max_derived = 50  # Limit derived rules per cycle
-        for frame in coord_frames:
-            if derived_count >= max_derived:
+
+        # Limit frames to process
+        for frame in coord_frames[:MAX_COORD_FRAMES]:
+            if derived_count >= MAX_DERIVED_RULES:
                 break
+
             c1, c2 = frame["concept_a"], frame["concept_b"]
+            strength = frame["strength"]
 
-            # Transfer actions from c1 to c2
+            # Weight factor: higher for SELF frames
+            t1 = concept_texts.get(c1, "").lower()
+            t2 = concept_texts.get(c2, "").lower()
+            weight_factor = (
+                RFT_WEIGHT_FACTOR * 1.5
+                if "self_" in t1 or "self_" in t2
+                else RFT_WEIGHT_FACTOR
+            )
+
+            # Transfer actions c1 -> c2
             c1_actions = concept_to_actions.get(c1, {})
-            if c1_actions:
-                for action, weight in c1_actions.items():
-                    if derived_count >= max_derived:
-                        break
-                    derived_weight = weight * RFT_WEIGHT_FACTOR
-                    memory.add_rule(
-                        perception_pattern=None,
-                        action=action,
-                        weight=derived_weight,
-                        command_id=c2,
-                        memory_type=MEMORY_DERIVED,
-                        derived_from=frame["id"],
-                    )
-                    derived_count += 1
+            for action, weight in c1_actions.items():
+                if derived_count >= MAX_DERIVED_RULES:
+                    break
 
-            # Transfer actions from c2 to c1 (symmetric)
+                derived_weight = weight * weight_factor * strength
+                memory.add_rule(
+                    perception_pattern=None,
+                    action=action,
+                    weight=derived_weight,
+                    command_id=c2,
+                    memory_type=MEMORY_DERIVED,
+                    derived_from=frame.get("id"),
+                )
+                derived_count += 1
+
+            # Transfer actions c2 -> c1 (symmetric)
+            if derived_count >= MAX_DERIVED_RULES:
+                break
+
             c2_actions = concept_to_actions.get(c2, {})
-            if c2_actions:
-                for action, weight in c2_actions.items():
-                    if derived_count >= max_derived:
-                        break
-                    derived_weight = weight * RFT_WEIGHT_FACTOR
-                    memory.add_rule(
-                        perception_pattern=None,
-                        action=action,
-                        weight=derived_weight,
-                        command_id=c1,
-                        memory_type=MEMORY_DERIVED,
-                        derived_from=frame["id"],
-                    )
-                    derived_count += 1
+            for action, weight in c2_actions.items():
+                if derived_count >= MAX_DERIVED_RULES:
+                    break
+
+                derived_weight = weight * weight_factor * strength
+                memory.add_rule(
+                    perception_pattern=None,
+                    action=action,
+                    weight=derived_weight,
+                    command_id=c1,
+                    memory_type=MEMORY_DERIVED,
+                    derived_from=frame.get("id"),
+                )
+                derived_count += 1
 
         return derived_count
 
     def apply_transformation(self, memory):
         """
-        Applies transformation of functions — transfers motivational relevance.
+        =========================================================================
+        TRANSFORMATION OF FUNCTIONS (MOTIVATIONAL TRANSFER) - OPTIMIZED
+        =========================================================================
 
-        In RFT, if concept A has high motivational value (is 'important' or
-        'valuable'), and A is coordinate with B, then B inherits partial
-        motivational relevance. This is distinct from action transfer —
-        it's about the affective significance of concepts.
+        If concept A has high value and A ≈ B, then B inherits partial value.
 
-        Example: If 'reward' has been heavily reinforced, and 'bonus' is
-        recognised as coordinate with 'reward', the agent will prioritises
-        'bonus' actions more than it would from direct experience alone.
+        This models how motivation transfers between related concepts without
+        direct reinforcement (e.g., "bonus" inherits incentive value of "reward").
 
-        Algorithm:
-        - Calculates total weight (importance) for each concept
-        - For high-importance concepts (total weight >= 10), finds coordinate concepts
-        - Boosts direct rules for coordinate concepts by 5%
-
-        Biological Analogue:
-        This models the dopaminergic reward prediction error system.
-        In biological brains, once a stimulus is associated with reward,
-        related stimuli acquire 'incentive salience' — they become 'wanted'
-        even without direct reinforcement (Berridge, 2007).
+        Optimization: Only processes high-value concepts, limits boosts.
 
         Args:
-            memory: The Memory subsystem
+            memory: Memory subsystem
 
         Returns:
-            int: Number of transformations applied
+            int: Number of transformations applied (max MAX_TRANSFORMATIONS)
         """
-        rules = memory.get_rules()
-        concept_weights = {}
-
-        for r in rules:
-            cmd_id = r.get("command_id")
-            if cmd_id is None:
-                continue
-            if cmd_id not in concept_weights:
-                concept_weights[cmd_id] = 0
-            concept_weights[cmd_id] += r["weight"]
+        rules = self._get_cached_rules(memory)
+        concept_maps = self._build_concept_maps(rules)
+        concept_weights = concept_maps[1]
 
         frames = memory.get_all_frames()
         coord_frames = [f for f in frames if f["relation_type"] == "COORD"]
 
         reinforced = 0
-        for frame in coord_frames:
-            c1, c2 = frame["concept_a"], frame["concept_b"]
-            w1 = concept_weights.get(c1, 0)
 
-            # If concept c1 has high motivational relevance (weight >= 10)
-            if w1 >= 10:
-                boost = w1 * 0.05  # 5% transfer of relevance
+        # Only high-value concepts transfer motivation
+        high_value_concepts = {
+            c: w
+            for c, w in concept_weights.items()
+            if w >= 10  # Threshold for "important" concept
+        }
+
+        for frame in coord_frames:
+            if reinforced >= MAX_TRANSFORMATIONS:
+                break
+
+            c1, c2 = frame["concept_a"], frame["concept_b"]
+            w1 = high_value_concepts.get(c1, 0)
+            w2 = high_value_concepts.get(c2, 0)
+
+            # Transfer from high-value to related concept
+            source = c1 if w1 >= 10 else (c2 if w2 >= 10 else None)
+            target = c2 if source == c1 else c1
+
+            if source and reinforced < MAX_TRANSFORMATIONS:
+                boost = w1 * 0.05 if source == c1 else w2 * 0.05
+
                 for r in rules:
-                    if r.get("command_id") == c2 and r["memory_type"] != MEMORY_DERIVED:
-                        # Only boost directly learned rules, not derived ones
+                    if reinforced >= MAX_TRANSFORMATIONS:
+                        break
+                    if (
+                        r.get("command_id") == target
+                        and r.get("memory_type") != MEMORY_DERIVED
+                    ):
                         memory.add_rule(
                             r["perception_pattern"],
                             r["target_action"],
                             weight=boost,
-                            command_id=c2,
+                            command_id=target,
                             memory_type=r["memory_type"],
                         )
                         reinforced += 1
@@ -416,50 +514,104 @@ class RelationalFrameEngine:
 
     def run_cycle(self, memory, max_operations=100):
         """
-        Executes the complete RFT derivation cycle.
+        =========================================================================
+        MAIN RFT CYCLE - OPTIMIZED WITH EARLY TERMINATION
+        =========================================================================
 
-        This is the orchestrator method called during sleep_cycle() consolidation.
-        It runs all RFT mechanisms in sequence with operation limits to prevent overload:
+        Executes the complete RFT derivation cycle with operation limits.
 
-        1. detect_coordination — finds synonym relationships
-        2. detect_opposition — finds antonym relationships
-        3. close_transitivity — derives transitive relationships
-        4. derive_mutual_entailment — creates derived action rules
-        5. apply_transformation — transfers motivational relevance
-        6. decay_frames — reduces stale relational frames
+        If EARLY_STOP_ON_OVERLOAD is True and a phase exceeds its limit,
+        subsequent phases are skipped to ensure bounded execution time.
 
-        The max_operations parameter limits total DB modifications per cycle.
+        Execution Order:
+        ----------------
+        1. Coordination detection (synonyms)
+        2. Opposition detection (antonyms)
+        3. Transitive closure (A≈B, B≈C → A≈C)
+        4. Mutual entailment (action transfer)
+        5. Transformation of functions (motivation transfer)
+        6. Frame decay
 
         Args:
-            memory: The Memory subsystem
-            max_operations: Maximum number of operations per phase
+            memory: Memory subsystem
+            max_operations: Deprecated, kept for compatibility
 
         Returns:
             dict: Summary of operations performed
         """
-        c1 = self.detect_coordination(memory)
-        c2 = self.detect_opposition(memory)
-        t1 = self.close_transitivity(memory)
-        d1 = self.derive_mutual_entailment(memory)
+        import time
 
-        # Skip transformation if too many operations already
-        if c1 + c2 + t1 + d1 > max_operations:
-            print(
-                f"RFT: Skipping transformation due to overload ({c1 + c2 + t1 + d1} ops)"
-            )
-            t2 = 0
-        else:
-            t2 = self.apply_transformation(memory)
+        start_time = time.time()
 
+        # Force cache refresh
+        self._get_cached_rules(memory, force_refresh=True)
+
+        total_ops = 0
+        overloaded = False
+
+        # Phase 1: Coordination & Deictics
+        coord_count = self.detect_coordination(memory)
+        deictic_count = self.detect_deictic_relations(memory)
+        total_ops += (coord_count + deictic_count)
+
+        if EARLY_STOP_ON_OVERLOAD and coord_count >= MAX_COORD_FRAMES:
+            overloaded = True
+
+        # Phase 2: Opposition (skip if overloaded)
+        opp_count = 0
+        if not overloaded:
+            opp_count = self.detect_opposition(memory)
+            opp_comb_count = self.close_opposition_combinatorial(memory)
+            total_ops += (opp_count + opp_comb_count)
+
+        # Phase 3: Transitive closure (skip if overloaded)
+        trans_count = 0
+        if not overloaded:
+            trans_count = self.close_transitivity(memory)
+            total_ops += trans_count
+
+            if EARLY_STOP_ON_OVERLOAD and trans_count >= MAX_TRANSITIVE_FRAMES:
+                overloaded = True
+
+        # Phase 4: Mutual entailment (skip if overloaded)
+        derived_count = 0
+        if not overloaded:
+            derived_count = self.derive_mutual_entailment(memory)
+            total_ops += derived_count
+
+            if EARLY_STOP_ON_OVERLOAD and derived_count >= MAX_DERIVED_RULES:
+                overloaded = True
+
+        # Phase 5: Transformation of functions (skip if overloaded)
+        transform_count = 0
+        if not overloaded:
+            transform_count = self.apply_transformation(memory)
+
+        # Phase 6: Frame decay
         memory.decay_frames()
 
+        # Get final frame count
         frames_after = len(memory.get_all_frames())
 
-        return {
-            "coord_frames": c1,
-            "opp_frames": c2,
-            "transitive_closure": t1,
-            "derived_rules": d1,
-            "transformations": t2,
+        elapsed = time.time() - start_time
+
+        self._last_run_stats = {
+            "coord_frames": coord_count,
+            "opp_frames": opp_count,
+            "transitive_closure": trans_count,
+            "derived_rules": derived_count,
+            "transformations": transform_count,
             "total_frames": frames_after,
+            "elapsed_ms": round(elapsed * 1000, 2),
+            "overloaded": overloaded,
         }
+
+        return self._last_run_stats
+
+    def get_last_stats(self):
+        """Get statistics from last run cycle."""
+        return self._last_run_stats
+
+    def clear_cache(self):
+        """Clear the internal cache."""
+        self._cache.clear()

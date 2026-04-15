@@ -31,8 +31,8 @@ WINDOW_HEIGHT = 1000
 PANEL_WIDTH = 220
 REPORT_WIDTH = 250
 REPORT_HEIGHT = 350  # Increased to show all inference lines
-POV_WIDTH = 280
-POV_HEIGHT = 380
+POV_WIDTH = 340
+POV_HEIGHT = 480
 
 # ====================
 # Visual Configuration
@@ -399,4 +399,134 @@ IMPACT_UNITS = 5
 """
 GL5 Dual-Bot: Energy penalty for collision between bots.
 Both attacker and defender receive this penalty on impact.
+"""
+
+# ====================
+# GL5 Vicarious Learning (Imitation) Constants
+# ====================
+# Implements observational learning / social learning where one robot
+# observes and imitates the actions of another robot within proximity.
+# Based on Bandura's social learning theory and mirror neuron research.
+
+VICARIOUS_PROXIMITY_THRESHOLD = 2
+"""
+Maximum Manhattan distance (in grid cells) for vicarious learning to activate.
+When two robots are within this distance, the observer robot can observe
+and potentially imitate the demonstrator's actions.
+"""
+
+VICARIOUS_IMITATION_REPETITIONS = 3
+"""
+Number of times the observer robot will imitate a demonstrated action
+sequence before attempting to perform it autonomously.
+This implements the 'practice phase' of observational learning.
+"""
+
+VICARIOUS_SATURATION_THRESHOLD = 15
+"""
+Number of imitation cycles before saturation fully kicks in.
+After this threshold, the robot becomes resistant to imitation
+and prioritizes autonomous action.
+"""
+
+VICARIOUS_SATURATION_RECOVERY = 5
+"""
+Number of autonomous actions required before imitation saturation resets.
+This prevents the robot from being stuck in perpetual imitation.
+"""
+
+VICARIOUS_IMITATION_REWARD = 2.0
+"""
+Intrinsic reward for successful imitation (when the action matches the demonstrator).
+This reinforces the value of social learning.
+"""
+
+VICARIOUS_LEARNING_RATE = 0.3
+"""
+Rate at which the robot learns from observing the other bot's actions.
+Higher values = faster learning but more volatile.
+"""
+
+# ====================
+# GL5.1 Hearing & Singing (Sonido Social)
+# ====================
+# Los robots "cantan" sus acciones y se "oyen" mutuamente.
+# Esto permite aprendizaje por asociación sonora.
+
+HEARING_MAX_DISTANCE = 5
+"""
+Distancia máxima para escuchar el "canto" de otro robot.
+El sonido se atenúa con la distancia.
+"""
+
+HEARING_SONG_VOLUME_BASE = 1.0
+HEARING_SONG_VOLUME_DECAY = 0.15
+"""
+Volumen base y factor de decaimiento por distancia.
+A mayor distancia, menor el "volumen" del sonido percibido.
+"""
+
+HEARING_LEARNING_RATE = 0.5
+"""
+Tasa de aprendizaje de asociaciones sonoras.
+"""
+
+ACTION_SONGS = {
+    0: "TURN_LEFT",  # Gira a la izquierda
+    1: "TURN_RIGHT",  # Gira a la derecha
+    2: "GO_FORWARD",  # Avanza
+    3: "GO_BACK",  # Retrocede
+}
+"""
+Canciones fonéticas que el robot "produce" al ejecutar cada acción.
+Simulan el canto o vocalización del movimiento.
+"""
+
+# ====================
+# GL5.1 Imagination Mode (Modo Imaginación)
+# ====================
+# Cuando el robot está ocioso, entra en modo imaginación
+# donde reorganiza y abstractiza el conocimiento.
+
+IMAGINATION_IDLE_THRESHOLD = 3
+"""
+Número de turnos sin reward positivo para entrar en modo imaginación.
+"""
+
+IMAGINATION_CYCLE_DURATION = 5
+"""
+Duración del ciclo de imaginación en pasos.
+"""
+
+IMAGINATION_ENABLED = True
+"""
+Habilitar modo imaginación.
+"""
+
+IMAGINATION_ABSTRACTION_RATE = 0.3
+"""
+Tasa de abstracción de reglas durante imaginación.
+Reglas similares se fusionan para crear conceptos más abstractos.
+"""
+
+IMAGINATION_GENERALIZATION_RATE = 0.2
+"""
+Tasa de generalización: reglas específicas se convierten en patrones.
+"""
+
+# ====================
+# Cognitive Productions Table
+# ====================
+COGNITIVE_PRODUCTIONS_TABLE = "cognitive_productions"
+"""
+Tabla SQL para almacenar producciones cognitivas del robot:
+- Reglas compuestas/abstraidas
+- Secuencias de acciones organizadas
+- Conceptos de alto nivel
+"""
+
+VICARIOUS_ACTION_MEMORY_SIZE = 10
+"""
+Maximum number of demonstrated actions to remember from the other robot.
+Older actions are forgotten (FIFO queue).
 """

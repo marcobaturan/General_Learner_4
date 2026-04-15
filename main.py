@@ -1,3 +1,55 @@
+"""
+################################################################################
+#                                                                              #
+#      ______ ______ _   _ ______ _____         _       _                      #
+#     |  ____|  ____| \ | |  ____|  __ \   /\   | |     | |                     #
+#     | |__  | |__  |  \| | |__  | |__) | /  \  | |     | |                     #
+#     |  __| |  __| | . ` |  __| |  _  / / /\ \ | |     | |                     #
+#     | |____| |____| |\  | |____| | \ \/ ____ \| |____ | |____                 #
+#     |______|______|_| \_|______|_|  \_\/_/    \_\______|______|                #
+#                                                                              #
+#      _      ______          _____  _   _ ______ _____                        #
+#     | |    |  ____|   /\   |  __ \| \ | |  ____|  __ \                       #
+#     | |    | |__     /  \  | |__) |  \| | |__  | |__) |                      #
+#     | |    |  __|   / /\ \ |  _  /| . ` |  __| |  _  /                       #
+#     | |____| |____ / ____ \| | \ \| |\  | |____| | \ \                       #
+#     |______|______/_/    \_\_|  \_\_| \_|______|_|  \_\                      #
+#                                                                              #
+################################################################################
+
+GENERAL LEARNER 5 (GL5) - THE COGNITIVE ORCHESTRATOR
+===================================================
+
+This is the primary entry point for the General Learner 5 simulation. It 
+implements the "Synthetic Theatre" where the cognitive architecture meets 
+the environment.
+
+SCIENTIFIC FOUNDATIONS:
+-----------------------
+1. CYBERNETICS & HOMEOSTASIS:
+   Based on W. Grey Walter's "Machina Speculatrix" (1950). The robots 
+   (Bot 1 & 2) seek "phototropic" equivalents (batteries) to satisfy 
+   internal homeostatic drives (hunger/tiredness).
+   Ref: Walter, W. G. (1953). The Living Brain. Norton.
+
+2. UNIVERSAL LEARNER PRINCIPLE:
+   Implements Walter Fritz's architecture where an agent must autonomously 
+   map perceptions to actions via reinforcement.
+   Ref: Fritz, W. (1989). The General Learner. 
+
+3. GLOBAL WORKSPACE THEORY (GWT):
+   Orchestrates the competition for consciousness between specialized 
+   modules (Vision, Spatial, Motor).
+   Ref: Baars, B. J. (1988). A Cognitive Theory of Consciousness.
+
+4. DUAL-BOT EXPERIMENTAL FRAMEWORK:
+   Implements social learning and Pauli Exclusion (collision physics) 
+   between two autonomous agents.
+
+Author: Marco
+Project: General_Learner_5 (GL5)
+"""
+
 import pygame
 import sys
 import json
@@ -10,6 +62,8 @@ from robot import Robot
 from memory import Memory
 from learner import Learner
 from experiment_logger import ExperimentLogger
+from gwt import GWTIntegrator
+import math
 import graphics
 from graphics import (
     Button,
@@ -24,8 +78,27 @@ from graphics import (
 
 class GeneralLearnerApp:
     """
-    Main Application class for the General Learner 4.
-    Orchestrates the PyGame loop, UI events, and the simulation state.
+    ############################################################################
+    #   _____ _      _        _____        _____  _____                        #
+    #  / ____| |    | |      / ____|      / ____|/ ____|                       #
+    # | |  __| |    | |     | (___       | (___ | |                            #
+    # | | |_ | |    | |      \___ \       \___ \| |                            #
+    # | |__| | |____| |____  ____) |      ____) | |____                        #
+    #  \_____|______|______||_____/      |_____/ \_____|                       #
+    ############################################################################
+
+    Main Application class for the General Learner 5.
+    
+    This class acts as the 'Central Nervous System' of the simulation, 
+    managing the PyGame loop, UI events, and the interaction between 
+    the environment and the cognitive bots.
+
+    CORE RESPONSIBILITIES:
+    - Initializing the Environment (The Labyrinth).
+    - Managing Bot 1 & Bot 2 instances.
+    - Routing UI events (Manual Reinforcement, Command Entry, Dream cycles).
+    - Visualizing the 'Global Workspace' and 'Situational Maps'.
+    - Logging experimental data for research analysis.
     """
 
     def __init__(self):
@@ -44,6 +117,7 @@ class GeneralLearnerApp:
         self.robot1.x = GRID_W // 2
         self.robot1.y = GRID_H // 2
         self.learner1 = Learner(self.memory_bot1, self.env)
+        self.gwt1 = GWTIntegrator(self.env, self.robot1, self.memory_bot1)
 
         # Bot 2 (dual-bot) - starts offset from center to respect Pauli Exclusion
         self.memory_bot2 = Memory("bot2_memory.db")
@@ -51,6 +125,7 @@ class GeneralLearnerApp:
         self.robot2.x = GRID_W // 2
         self.robot2.y = GRID_H // 2 + 1  # Offset by 1 tile
         self.learner2 = Learner(self.memory_bot2, self.env)
+        self.gwt2 = GWTIntegrator(self.env, self.robot2, self.memory_bot2)
 
         # Active bot selector
         self.active_bot = 1  # 1 or 2
@@ -189,6 +264,11 @@ class GeneralLearnerApp:
     def learner(self):
         """Returns the active learner based on active_bot selection."""
         return self.learner1 if self.active_bot == 1 else self.learner2
+
+    @property
+    def gwt(self):
+        """Returns the active GWT integrator based on active_bot selection."""
+        return self.gwt1 if self.active_bot == 1 else self.gwt2
 
     def get_active_robot(self):
         """Returns the active robot instance (for direct access)."""
@@ -331,14 +411,16 @@ class GeneralLearnerApp:
             self.learner._guided_this_step = False
 
         other_robot = self.robot2 if self.active_bot == 1 else self.robot1
-        state = self.robot.get_state(other_robot)
-
+        
+        # GL5.1: Integrate GWT cognitive cycle
+        gwt_context = self.gwt.run_cycle()
+        
         # Determine action: either the user-forced one (Guided) or the learner's act
         if forced_action is not None:
             action = forced_action
         else:
             action = self.learner.act(
-                self.robot, text_command=text_cmd, other_bot=other_robot
+                self.robot, text_command=text_cmd, other_bot=other_robot, gwt_context=gwt_context
             )
 
         reward = self.robot.step(action, other_robot)
@@ -397,9 +479,13 @@ class GeneralLearnerApp:
         other_robot = self.robot2 if bot_id == 1 else self.robot1
         memory = self.memory_bot1 if bot_id == 1 else self.memory_bot2
         learner = self.learner1 if bot_id == 1 else self.learner2
+        gwt = self.gwt1 if bot_id == 1 else self.gwt2
+
+        # GL5.1: Integrate GWT cognitive cycle
+        gwt_context = gwt.run_cycle()
 
         # Get action from learner (pass other_bot for collision-aware perception)
-        action = learner.act(robot, other_bot=other_robot)
+        action = learner.act(robot, other_bot=other_robot, gwt_context=gwt_context)
 
         # Execute step with other bot for collision detection (Pauli Exclusion)
         reward = robot.step(action, other_robot)
@@ -890,3 +976,256 @@ class GeneralLearnerApp:
 if __name__ == "__main__":
     app = GeneralLearnerApp()
     app.run()
+
+# =============================================================================
+# OPTIMIZED COGNITIVE NETWORK VISUALIZATION EXPORTER
+# =============================================================================
+
+def export_cognitive_network_image(app, bot_id=1, filepath=None):
+    """
+    GL5.1: Exports an optimized visual graph of the robot's conceptual network.
+    Correctly connects RFT frames, Cognitive Productions, and Macros.
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
+        import math
+        import json
+    except ImportError:
+        print("ERROR: matplotlib not available for graph export")
+        return None
+
+    learner = app.learner1 if bot_id == 1 else app.learner2
+    memory = learner.memory
+
+    if filepath is None:
+        filepath = f"cognitive_network_bot{bot_id}.png"
+
+    # Collect all knowledge components
+    rules = memory.get_rules(limit=500)
+    frames = memory.get_all_frames()
+    prods = memory.get_cognitive_productions(limit=50)
+    heard = memory.get_heard_songs(min_strength=0.1, limit=30)
+    
+    # Get concept labels for RFT mapping
+    concept_labels = {}
+    try:
+        cur = memory.conn.cursor()
+        cur.execute("SELECT id, value FROM conceptual_ids")
+        for row in cur.fetchall():
+            concept_labels[row["id"]] = row["value"]
+    except:
+        pass
+
+    # Create figure
+    fig, ax = plt.subplots(1, 1, figsize=(24, 18))
+    ax.set_xlim(-12, 12)
+    ax.set_ylim(-12, 12)
+    ax.set_aspect("equal")
+    ax.axis("off")
+
+    ax.set_title(
+        f"Symbolic Cognitive Architecture - Bot {bot_id}\n"
+        f"Rules: {len(rules)} | RFT Frames: {len(frames)} | "
+        f"CogProds: {len(prods)} | Hearing: {len(heard)}",
+        fontsize=18, fontweight="bold", pad=20, color="#2C3E50"
+    )
+
+    node_pos = {}
+    node_colors = []
+    node_labels = {}
+    node_sizes = []
+    node_types = {} # Store type for edge logic
+
+    # Categories for radial layout
+    action_nodes = []
+    percept_nodes = []
+    self_nodes = []
+    prod_nodes = []
+    heard_nodes = []
+    
+    action_names = {0: "LEFT", 1: "RIGHT", 2: "FORWARD", 3: "BACK"}
+
+    # 1. Action Nodes (Center)
+    for i in range(4):
+        name = action_names[i]
+        action_nodes.append(name)
+        node_pos[name] = (1.5 * math.cos(i * 3.14/2), 1.5 * math.sin(i * 3.14/2))
+        node_colors.append("#FF6B6B") # Red
+        node_sizes.append(1200)
+        node_labels[name] = name
+        node_types[name] = "action"
+
+    # 2. Percept & Self Nodes (Middle Rings)
+    processed_percepts = set()
+    for rule in rules[:150]:
+        perc = rule.get("perception_pattern", "")
+        if isinstance(perc, str):
+            try: perc = json.loads(perc)
+            except: perc = {}
+        
+        if isinstance(perc, dict):
+            for key, val in perc.items():
+                node_key = f"{key}:{val}"
+                if key.startswith("SELF_"):
+                    if key not in self_nodes: self_nodes.append(key)
+                elif val != "ANY" and node_key not in processed_percepts:
+                    percept_nodes.append(node_key)
+                    processed_percepts.add(node_key)
+
+    # Layout Self-Concepts
+    for i, node in enumerate(self_nodes[:20]):
+        angle = i * (2 * 3.14 / max(len(self_nodes[:20]), 1))
+        node_pos[node] = (4.0 * math.cos(angle), 4.0 * math.sin(angle))
+        node_colors.append("#FFE66D") # Yellow
+        node_sizes.append(700)
+        node_labels[node] = node.replace("SELF_", "S_")[:10]
+        node_types[node] = "self"
+
+    # Layout Percepts
+    for i, node in enumerate(percept_nodes[:40]):
+        angle = i * (2 * 3.14 / max(len(percept_nodes[:40]), 1)) + 0.2
+        dist = 6.5 + (i % 2) * 0.8 # Jitter for less overlap
+        node_pos[node] = (dist * math.cos(angle), dist * math.sin(angle))
+        node_colors.append("#4ECDC4") # Teal
+        node_sizes.append(400)
+        node_labels[node] = node.split(":")[-1][:8]
+        node_types[node] = "percept"
+
+    # 3. Cognitive Productions (Outer Ring)
+    for i, prod in enumerate(prods[:25]):
+        name = prod["name"]
+        prod_nodes.append(name)
+        angle = i * (2 * 3.14 / max(len(prods[:25]), 1))
+        node_pos[name] = (9.5 * math.cos(angle), 9.5 * math.sin(angle))
+        node_colors.append("#9B59B6") # Purple
+        node_sizes.append(800)
+        node_labels[name] = name[:12]
+        node_types[name] = "prod"
+
+    # 4. Heard Songs
+    for i, h in enumerate(heard[:15]):
+        name = f"SONG_{h['heard_song']}"
+        heard_nodes.append(name)
+        angle = i * (2 * 3.14 / max(len(heard[:15]), 1)) - 0.5
+        node_pos[name] = (11.0 * math.cos(angle), 11.0 * math.sin(angle))
+        node_colors.append("#3498DB") # Blue
+        node_sizes.append(600)
+        node_labels[name] = h["heard_song"][:10]
+        node_types[name] = "heard"
+
+    # DRAW EDGES
+    # a) Rules (Green/Red)
+    rule_map = {r["id"]: r for r in rules}
+    for rule in rules[:250]:
+        action = rule["target_action"]
+        weight = rule["weight"]
+        perc = rule["perception_pattern"]
+        if isinstance(perc, str):
+            try: perc = json.loads(perc)
+            except: perc = {}
+        
+        target = action_names.get(action)
+        if target and isinstance(perc, dict):
+            for key, val in perc.items():
+                source = f"{key}:{val}" if not key.startswith("SELF_") else key
+                if source in node_pos and target in node_pos:
+                    style = "-" if rule["is_composite"] == 0 else "--"
+                    alpha = min(0.8, 0.2 + abs(weight)/10.0)
+                    ax.annotate("", xy=node_pos[target], xytext=node_pos[source],
+                                arrowprops=dict(arrowstyle="->", color="#1B5E20" if weight > 0 else "#B71C1C", 
+                                              lw=1.5 + abs(weight)/8, alpha=alpha, linestyle=style))
+
+    # b) RFT Frames (Darker and thicker)
+    for frame in frames[:30]:
+        c1 = concept_labels.get(frame["concept_a"])
+        c2 = concept_labels.get(frame["concept_b"])
+        rel = frame["relation_type"]
+        if c1 in node_pos and c2 in node_pos:
+            color = "#2E7D32" if rel == "COORD" else "#C62828"
+            style = ":" if rel == "OPP" else "-."
+            ax.plot([node_pos[c1][0], node_pos[c2][0]], [node_pos[c1][1], node_pos[c2][1]], 
+                    color=color, linestyle=style, alpha=min(1.0, frame["strength"] + 0.2), lw=2.5)
+
+    # c) Cognitive Production Component Connections (Higher contrast)
+    for prod in prods[:15]:
+        p_name = prod["name"]
+        if p_name in node_pos and prod["component_rules"]:
+            try:
+                comp_ids = json.loads(prod["component_rules"])
+                for rid in comp_ids:
+                    if rid in rule_map:
+                        r = rule_map[rid]
+                        a_target = action_names.get(r["target_action"])
+                        if a_target in node_pos:
+                            ax.plot([node_pos[p_name][0], node_pos[a_target][0]], 
+                                    [node_pos[p_name][1], node_pos[a_target][1]], 
+                                    color="#6A1B9A", alpha=0.4, lw=1.5)
+            except: pass
+
+    # DRAW NODES
+    for name, pos in node_pos.items():
+        idx = list(node_pos.keys()).index(name)
+        color = node_colors[idx]
+        size = node_sizes[idx]
+        ax.scatter(pos[0], pos[1], s=size, color=color, edgecolors="white", linewidth=1.5, zorder=5)
+        ax.text(pos[0], pos[1], node_labels.get(name, ""), ha="center", va="center", 
+                fontsize=7, fontweight="bold", color="#2C3E50" if color == "#FFE66D" else "white", zorder=6)
+
+    # LEGEND
+    legend_elements = [
+        mpatches.Patch(color="#FF6B6B", label="Actions (Motor)"),
+        mpatches.Patch(color="#4ECDC4", label="Percepts (Sensory)"),
+        mpatches.Patch(color="#FFE66D", label="Self-Concepts (Identity)"),
+        mpatches.Patch(color="#9B59B6", label="CogProductions (Abstraction)"),
+        mpatches.Patch(color="#3498DB", label="Hearing (Social)"),
+        plt.Line2D([0], [0], color="#2ECC71", label="COORD Frame / Pos Rule"),
+        plt.Line2D([0], [0], color="#E74C3C", label="OPP Frame / Neg Rule"),
+        plt.Line2D([0], [0], color="gray", linestyle="--", label="Macro (Composite)"),
+    ]
+    ax.legend(handles=legend_elements, loc="upper right", frameon=True, shadow=True)
+
+    plt.tight_layout()
+    plt.savefig(filepath, dpi=150, bbox_inches="tight", facecolor="#F8F9FA")
+    plt.close()
+
+    print(f"Expert Cognitive Network exported to: {filepath}")
+    return filepath
+
+
+def export_learning_trajectory_csv(app, bot_id=1, filepath=None):
+    """
+    Exports learning trajectory data to CSV for analysis.
+    """
+    learner = app.learner1 if bot_id == 1 else app.learner2
+    memory = learner.memory
+
+    if filepath is None:
+        filepath = f"learning_trajectory_bot{bot_id}.csv"
+
+    import csv
+
+    rules = memory.get_rules(limit=10000)
+    
+    rows = []
+    for i, rule in enumerate(rules):
+        rows.append({
+            "bot_id": bot_id,
+            "rule_id": rule.get("id", i),
+            "perception": str(rule.get("perception_pattern", ""))[:100],
+            "action": rule.get("target_action", -1),
+            "weight": rule.get("weight", 0),
+            "memory_type": rule.get("memory_type", 0),
+            "is_composite": rule.get("is_composite", 0)
+        })
+
+    with open(filepath, "w", newline="") as f:
+        if rows:
+            writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+            writer.writeheader()
+            writer.writerows(rows)
+
+    print(f"Learning trajectory exported to: {filepath}")
+    return filepath

@@ -1,3 +1,46 @@
+"""
+################################################################################
+#                                                                              #
+#      _____   ____  ____   ____ _______                                       #
+#     |  __ \ / __ \|  _ \ / __ \__   __|                                      #
+#     | |__) | |  | | |_) | |  | | | |                                         #
+#     |  _  /| |  | |  _ <| |  | | | |                                         #
+#     | | \ \| |__| | |_) | |__| | | |                                         #
+#     |_|  \_\\____/|____/ \____/  |_|                                         #
+#                                                                              #
+################################################################################
+
+ROBOT SUBSYSTEM - THE SYNTHETIC AGENT
+=====================================
+
+This module implements the physical and biological properties of the 
+GL5 agent. It is inspired by the early cybernetic tortoises of 
+W. Grey Walter.
+
+SCIENTIFIC FOUNDATIONS:
+-----------------------
+1. MACHINA SPECULATRIX:
+   Based on Grey Walter's (1950) Elmer and Elsie. The robot uses simple 
+   rules to maintain homeostasis (finding 'food' / batteries).
+   Ref: Walter, W. G. (1950). An imitation of life. Scientific American.
+
+2. HOMEOSTASIS:
+   The robot maintains internal variables (Hunger, Tiredness). When 
+   these exceed thresholds, the agent's behavior must shift towards 
+   corrective actions (seeking battery or dreaming/sleeping).
+
+3. PAULI EXCLUSION PRINCIPLE (Computational):
+   In the GL5 Dual-Bot framework, two robots cannot occupy the same 
+   spatial coordinate. Collisions cause an energy penalty (Pain), 
+   driving the emergence of avoidance behavior.
+
+4. AUTOBIOGRAPHICAL IDENTITY:
+   Each robot has a unique self_id. This is essential for the Mirror 
+   Self-Recognition test and social differentiation.
+
+Author: Marco
+"""
+
 import math
 import random
 from constants import *
@@ -5,24 +48,22 @@ from constants import *
 
 class Robot:
     """
-    Autonomous agent that learns to survive by finding batteries and avoiding walls.
-    Maintains internal homeostasis variables (Hunger, Tiredness).
+    ############################################################################
+    #   _____   ____  ____   ____ _______                                      #
+    #  |  __ \ / __ \|  _ \ / __ \__   __|                                     #
+    #  | |__) | |  | | |_) | |  | | | |                                        #
+    #  |  _  /| |  | |  _ <| |  | | | |                                        #
+    #  | | \ \| |__| | |_) | |__| | | |                                        #
+    #  |_|  \_\\____/|____/|____/  |_|                                         #
+    ############################################################################
 
-    GL5: Has autobiographical memory with unique self-identity (2-digit ID).
-    Implements self-recognition capability (mirror test).
+    Autonomous agent that learns to survive.
 
-    GL5.1 Dual-Bot Physical Interaction Principles:
-    -----------------------------------------------
-    1. Pauli Exclusion: Two bots cannot occupy same tile. Movement blocked.
-    2. Pain on Impact: Collision triggers -IMPACT_UNITS energy penalty to both.
-    3. Mutual Recognition: Each bot has self_id for differentiating self from other.
-
-    The collision detection system implements fundamental physics of agent interaction,
-    creating emergent avoidance behavior without explicit "avoid other bot" programming.
-
-    Attributes:
-        self_id: Unique identifier (1 or 2) for mutual recognition
-        last_collision: Flag for learning from collision events
+    This class manages:
+    - Motor Execution (Moving, Turning).
+    - Sensory Accumulation (Distance sensors, Perception grid).
+    - Internal Homeostasis (Hunger, Tiredness).
+    - Collision Physics (Pauli Exclusion).
     """
 
     def __init__(self, env, self_id=None):
@@ -47,6 +88,7 @@ class Robot:
         self.y = GRID_H // 2
         self.direction = DIR_N
         self.last_collision = False
+        self.last_action = None  # GL5.1: Track last action for vicarious learning
 
     def get_state(self, other_bot=None):
         """
@@ -115,12 +157,17 @@ class Robot:
         Actions: 0:Turn Left, 1:Turn Right, 2:Move Forward, 3:Move Backward
 
         GL5 Dual-Bot: other_bot parameter enables collision detection.
+        GL5.1 Vicarious Learning: Records last_action for imitation by other bot.
         """
         from constants import IMPACT_UNITS
 
         reward = -1  # Small penalty per step to encourage efficiency
         self.hunger += 1
         self.tiredness += 1
+
+        # GL5.1: Record action for vicarious learning (imitation by other bot)
+        self.last_action = action
+        self.last_action_reward = reward  # Will be updated if battery collected
 
         if action == 0:  # Turn Left
             self.direction = (self.direction - 1) % 4
@@ -130,6 +177,9 @@ class Robot:
             reward = self.move_forward(other_bot)
         elif action == 3:  # Move Backward
             reward = self.move_backward(other_bot)
+
+        # Update reward tracking
+        self.last_action_reward = reward
 
         # Check current cell for objects (Batteries, Reset Button)
         obj = self.env.get_at(self.x, self.y)

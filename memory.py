@@ -1,23 +1,47 @@
 """
-Memory Subsystem for General Learner 4/5
+################################################################################
+#                                                                              #
+#      __  __ ______ __  __  ____  _____ __     __                             #
+#     |  \/  |  ____|  \/  |/ __ \|  __ \\ \   / /                             #
+#     | \  / | |__  | \  / | |  | | |__) |\ \_/ /                              #
+#     | |\/| |  __| | |\/| | |  | |  _  /  \   /                               #
+#     | |  | | |____| |  | | |__| | | \ \   | |                                #
+#     |_|  |_|______|_|  |_|\____/|_|  \_\  |_|                                #
+#                                                                              #
+################################################################################
 
-This module implements the persistent storage layer for the cognitive architecture,
-modelling the hippocampal formation's dual-trace memory system in silicon.
+MEMORY SUBSYSTEM - THE HIPPOCAMPAL-CORTICAL INTERFACE
+=====================================================
 
-The memory hierarchy mirrors biological memory consolidation:
-1. Episodic Buffer (Chrono Memory) — Short-term, experience-rich, rapidly decaying
-2. Semantic Store (Rules) — Consolidated, abstract, slowly decaying
-3. Relational Network (Frames) — Abstract inference, GL5 only
+This module implements the multi-tier memory architecture of the GL5 agent. 
+It mirrors the biological distinction between episodic, semantic, and 
+relational memory systems.
 
-Based on the following neuroscientific and psychological theories:
-- Squire, L.R. (1986). Mechanisms of memory. Science, 232(4758), 1612-1619.
-  The distinction between hippocampal (episodic) and neocortical (semantic) memory.
-- Ebbinghaus, H. (1885). Memory: A Contribution to Experimental Psychology.
-  The forgetting curve and asymptotic decay of memory traces.
-- Teyler, T.J. & DiDiscenna, P. (1985). The hippocampal memory indexing theory.
-  Neural basis for pattern completion and relational mapping.
+SCIENTIFIC FOUNDATIONS:
+-----------------------
+1. THE DUAL-TRACE THEORY:
+   Based on the work of Squire (1986). Memory is initially encoded in the 
+   hippocampus (Episodic) and later consolidated into the neocortex (Semantic).
+   Ref: Squire, L. R. (1986). Mechanisms of Memory. Science.
 
-Author: Marco (extending Grey Walter's cybernetic heritage)
+2. EPISODIC BUFFER (Chrono Memory):
+   Models the hippocampal CA1 region. Captures raw "What, Where, When" 
+   triplets. Rapidly encoded but high decay rate.
+
+3. SEMANTIC STORE (Rules):
+   Models long-term cortical storage. Abstracted rules mapping perception 
+   to action, weighted by reinforcement history (Hebbian LTP).
+
+4. RELATIONAL NETWORK (Frames):
+   Implements Relational Frame Theory (Hayes, 2001). Stores non-arbitrary 
+   and arbitrary relations (Coordination, Opposition, etc.) between 
+   concepts for derived reasoning.
+
+5. SPATIAL COGNITIVE MAP (Territory):
+   Based on O'Keefe & Nadel (1978). Place cells and grid cells enable 
+   topological navigation.
+
+Author: Marco
 """
 
 import sqlite3
@@ -26,17 +50,22 @@ import json
 
 class Memory:
     """
+    ############################################################################
+    #   __  __ ______ __  __  ____  _____ __     __                            #
+    #  |  \/  |  ____|  \/  |/ __ \|  __ \\ \   / /                            #
+    #  | \  / | |__  | \  / | |  | | |__) |\ \_/ /                             #
+    #  | |\/| |  __| | |\/| | |  | |  _  /  \   /                              #
+    #  | |  | | |____| |  | | |__| | | \ \   | |                               #
+    #  |_|  |_|______|_|  |_|\____/|_|  \_\  |_|                               #
+    ############################################################################
+
     The persistent storage subsystem modelling biological memory.
 
     In biological brains, memory is not a single homogeneous system but
     a collection of interacting processes with different properties:
-    - Episodic (hippocampal): Fast encoding, fast decay, single events
-    - Semantic (cortical): Slow encoding, slow decay, abstracted knowledge
-    - Relational (prefrontal): Inference, generalisation, transitivity
-
-    This class implements an analogous architecture using SQLite as the
-    physical substrate, with separate tables mirroring these functional
-    divisions while allowing seamless interaction.
+    - Episodic (hippocampal): Fast encoding, fast decay, single events.
+    - Semantic (cortical): Slow encoding, slow decay, abstracted knowledge.
+    - Relational (prefrontal): Inference, generalisation, transitivity.
     """
 
     def __init__(self, db_path="general_learner.db"):
@@ -206,6 +235,49 @@ class Memory:
             )
         """)
 
+        # GL5.1: Cognitive Productions Table
+        # Almacena producciones cognitivas de alto nivel generadas por:
+        # - Imaginación (abstracción de reglas)
+        # - Generalización (patrones de acciones)
+        # - Composición (macros de nivel superior)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS cognitive_productions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                production_type TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                component_rules TEXT,
+                abstraction_level INTEGER DEFAULT 1,
+                confidence REAL DEFAULT 0.5,
+                usefulness REAL DEFAULT 0.5,
+                usage_count INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_used DATETIME DEFAULT CURRENT_TIMESTAMP,
+                origin_bot INTEGER DEFAULT 1,
+                heard_from_bot INTEGER DEFAULT NULL,
+                is_imagined INTEGER DEFAULT 0,
+                is_heard INTEGER DEFAULT 0,
+                fusion_count INTEGER DEFAULT 0,
+                generalization_depth INTEGER DEFAULT 0
+            )
+        """)
+
+        # GL5.1: Hearing Memories Table
+        # Almacena las secuencias sonoras escuchadas de otros robots
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS hearing_memories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                heard_song TEXT NOT NULL,
+                heard_from_bot INTEGER NOT NULL,
+                associated_action INTEGER,
+                association_strength REAL DEFAULT 0.5,
+                context_perception TEXT,
+                reward_outcome INTEGER,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                times_reinforced INTEGER DEFAULT 1
+            )
+        """)
+
         # Database Migrations
         # ===================
         # Adds missing columns to existing databases for backward compatibility.
@@ -266,14 +338,7 @@ class Memory:
 
         This implements symbolic grounding — the agent creates its own
         internal vocabulary regardless of the specific tokens used by
-        the human teacher. 'AVANZA', 'FORWARD', 'VORWÄRTS' all map to
-        the same internal ID if the human uses them interchangeably.
-
-        Biological analogue: The brain's ability to form orthographic
-        pooling — combining character features into word-level
-        representations regardless of font, case, or handwriting style.
-
-        Reference: Dehaene, S. (2009). Reading in the Brain. Viking Press.
+        the human teacher.
 
         Args:
             value: The textual string to map
@@ -288,6 +353,7 @@ class Memory:
             cur.execute(
                 "INSERT OR IGNORE INTO conceptual_ids (value) VALUES (?)", (value,)
             )
+            self.conn.commit()
             cur.execute("SELECT id FROM conceptual_ids WHERE value = ?", (value,))
             row = cur.fetchone()
             return row["id"] if row else None
@@ -333,14 +399,11 @@ class Memory:
         self, perception, action, reward, command=None, rehearsed=False, weight=1.0
     ):
         """
-        Adds an experience to the episodic buffer (now Intermediate-Term Memory).
+        Adds an experience to the episodic buffer (chrono_memory).
 
         Records a single perception-action-reward triplet, modelling the
         immediate encoding of experiences in the hippocampus. This data
         is used during consolidation to form more abstract rules.
-
-        GL5: Added rehearsed flag to mark items that have been actively
-        maintained in working memory (protected from faster decay).
 
         Biological analogue: The rapid encoding of novel experiences in
         the hippocampal formation — a process that occurs within seconds
@@ -348,23 +411,15 @@ class Memory:
 
         Reference: Squire, L.R. & Zola, S.M. (1996). Structure and function
         of declarative and nondeclarative memory systems. PNAS, 93(24), 13515-13522.
-
-        Args:
-            perception: The fuzzy perceptual vector (JSON)
-            action: The action taken (ACT_FORWARD, etc.)
-            reward: The reinforcement signal (-1, 0, +10, etc.)
-            command: Optional text command that triggered the action
-            rehearsed: Whether item was actively rehearsed in WM
-            weight: Initial weight for the experience
         """
         cur = self.conn.cursor()
         perc_str = json.dumps(perception)
         cur.execute(
             """
-            INSERT INTO intermediate_memory (perception, action, reward, command_text, rehearsed, weight) 
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO chrono_memory (perception, action, reward, command_text) 
+            VALUES (?, ?, ?, ?)
         """,
-            (perc_str, action, reward, command, 1 if rehearsed else 0, weight),
+            (perc_str, action, reward, command),
         )
         self.conn.commit()
 
@@ -797,3 +852,481 @@ class Memory:
         cur = self.conn.cursor()
         cur.execute("DELETE FROM relational_frames WHERE strength < ?", (threshold,))
         self.conn.commit()
+
+    def export_rules_csv(self, filepath="rules_export.csv"):
+        """
+        Exports all rules to CSV for external analysis/graphing.
+        """
+        import csv
+
+        rules = self.get_rules(limit=100000)
+        if not rules:
+            print("No rules to export")
+            return None
+
+        with open(filepath, "w", newline="") as f:
+            fieldnames = [
+                "id",
+                "perception",
+                "target_action",
+                "weight",
+                "memory_type",
+                "is_composite",
+                "command_id",
+                "command_text",
+            ]
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for r in rules:
+                row = {k: r.get(k, "") for k in fieldnames}
+                writer.writerow(row)
+
+        print(f"Exported {len(rules)} rules to {filepath}")
+        return filepath
+
+    def export_frames_csv(self, filepath="frames_export.csv"):
+        """
+        Exports all relational frames to CSV for analysis.
+        """
+        import csv
+
+        frames = self.get_all_frames()
+        if not frames:
+            print("No frames to export")
+            return None
+
+        with open(filepath, "w", newline="") as f:
+            fieldnames = [
+                "id",
+                "concept1_id",
+                "concept2_id",
+                "relation_type",
+                "strength",
+                "bidirectional",
+            ]
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for fr in frames:
+                row = {k: fr.get(k, "") for k in fieldnames}
+                writer.writerow(row)
+
+        print(f"Exported {len(frames)} frames to {filepath}")
+        return filepath
+
+    def export_chronologies_csv(self, filepath="chronologies_export.csv"):
+        """
+        Exports all episodic memories (chronologies) to CSV.
+        """
+        import csv
+
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT id, perception, action, reward, command_text, timestamp FROM chrono_memory ORDER BY timestamp"
+        )
+        rows = cur.fetchall()
+
+        if not rows:
+            print("No chronologies to export")
+            return None
+
+        with open(filepath, "w", newline="") as f:
+            fieldnames = [
+                "id",
+                "perception",
+                "action",
+                "reward",
+                "command_text",
+                "timestamp",
+            ]
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(dict(zip(fieldnames, row)))
+
+        print(f"Exported {len(rows)} chronologies to {filepath}")
+        return filepath
+
+    def query_concepts_stats(self):
+        """
+        Returns statistics about learned concepts.
+        """
+        cur = self.conn.cursor()
+
+        cur.execute("SELECT COUNT(*) FROM conceptual_ids")
+        total_concepts = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM rules WHERE weight > 0")
+        positive_rules = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM rules WHERE weight < 0")
+        negative_rules = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM rules WHERE is_composite = 1")
+        macro_rules = cur.fetchone()[0]
+
+        cur.execute("SELECT AVG(weight) FROM rules")
+        avg_weight = cur.fetchone()[0] or 0
+
+        cur.execute("SELECT MAX(weight) FROM rules")
+        max_weight = cur.fetchone()[0] or 0
+
+        return {
+            "total_concepts": total_concepts,
+            "positive_rules": positive_rules,
+            "negative_rules": negative_rules,
+            "macro_rules": macro_rules,
+            "avg_rule_weight": round(avg_weight, 2),
+            "max_rule_weight": round(max_weight, 2),
+        }
+
+    def query_learning_trajectory(self, sample_rate=10):
+        """
+        Returns learning trajectory over time (sampled).
+
+        Args:
+            sample_rate: Sample every N chronologies
+
+        Returns:
+            list of dicts with cumulative stats over time
+        """
+        cur = self.conn.cursor()
+        cur.execute("""
+            SELECT c.timestamp, c.reward, c.action,
+                   (SELECT COUNT(*) FROM rules WHERE id <= c.id) as rule_count,
+                   (SELECT AVG(weight) FROM rules WHERE id <= c.id) as avg_weight
+            FROM chrono_memory c
+            ORDER BY c.timestamp
+        """)
+        rows = cur.fetchall()
+
+        trajectory = []
+        for i, row in enumerate(rows):
+            if i % sample_rate == 0:
+                trajectory.append(
+                    {
+                        "step": i,
+                        "timestamp": row[0],
+                        "reward": row[1],
+                        "action": row[2],
+                        "cumulative_rules": row[3],
+                        "cumulative_avg_weight": round(row[4] or 0, 2),
+                    }
+                )
+
+        return trajectory
+
+    # =========================================================================
+    # GL5.1: Cognitive Productions Management
+    # =========================================================================
+
+    def add_cognitive_production(
+        self,
+        production_type: str,
+        name: str,
+        component_rules: list = None,
+        abstraction_level: int = 1,
+        confidence: float = 0.5,
+        origin_bot: int = 1,
+        heard_from_bot: int = None,
+        is_imagined: bool = False,
+        is_heard: bool = False,
+        description: str = None,
+    ) -> int:
+        """
+        Adds a new cognitive production (high-level abstraction).
+
+        Args:
+            production_type: 'MACRO', 'GENERALIZATION', 'ABSTRACTION', 'CONCEPT'
+            name: Human-readable name of the production
+            component_rules: List of rule IDs that compose this production
+            abstraction_level: How abstract (1=concrete, 5=highly abstract)
+            confidence: Confidence in the production's usefulness
+            origin_bot: Which bot created this (1 or 2)
+            heard_from_bot: If learned from hearing, which bot
+            is_imagined: True if created in imagination mode
+            is_heard: True if learned from hearing another bot
+            description: Optional description
+
+        Returns:
+            int: ID of the new production
+        """
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO cognitive_productions
+            (production_type, name, description, component_rules, abstraction_level,
+             confidence, origin_bot, heard_from_bot, is_imagined, is_heard)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                production_type,
+                name,
+                description,
+                json.dumps(component_rules) if component_rules else None,
+                abstraction_level,
+                confidence,
+                origin_bot,
+                heard_from_bot,
+                1 if is_imagined else 0,
+                1 if is_heard else 0,
+            ),
+        )
+        self.conn.commit()
+        return cur.lastrowid
+
+    def get_cognitive_productions(
+        self,
+        production_type: str = None,
+        min_abstraction: int = 0,
+        min_confidence: float = 0.0,
+        limit: int = 1000,
+    ) -> list:
+        """
+        Retrieves cognitive productions with optional filters.
+
+        Args:
+            production_type: Filter by type ('MACRO', 'GENERALIZATION', etc.)
+            min_abstraction: Minimum abstraction level
+            min_confidence: Minimum confidence value
+            limit: Maximum number of results
+
+        Returns:
+            list: List of production dictionaries
+        """
+        cur = self.conn.cursor()
+        query = "SELECT * FROM cognitive_productions WHERE abstraction_level >= ? AND confidence >= ?"
+        params = [min_abstraction, min_confidence]
+
+        if production_type:
+            query += " AND production_type = ?"
+            params.append(production_type)
+
+        query += " ORDER BY confidence DESC, usage_count DESC LIMIT ?"
+        params.append(limit)
+
+        cur.execute(query, params)
+        return [dict(row) for row in cur.fetchall()]
+
+    def increment_production_usage(self, production_id: int) -> None:
+        """Increments usage count and updates last_used timestamp."""
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            UPDATE cognitive_productions
+            SET usage_count = usage_count + 1, last_used = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (production_id,),
+        )
+        self.conn.commit()
+
+    def update_production_confidence(self, production_id: int, delta: float) -> None:
+        """Updates confidence based on performance delta."""
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            UPDATE cognitive_productions
+            SET confidence = MAX(0.1, MIN(1.0, confidence + ?))
+            WHERE id = ?
+            """,
+            (delta, production_id),
+        )
+        self.conn.commit()
+
+    def fuse_cognitive_productions(
+        self, prod1_id: int, prod2_id: int, fused_name: str = None
+    ) -> int:
+        """
+        Fuses two cognitive productions into one more abstract concept.
+
+        Args:
+            prod1_id: First production ID
+            prod2_id: Second production ID
+            fused_name: Name for the new fused production
+
+        Returns:
+            int: ID of the new fused production
+        """
+        cur = self.conn.cursor()
+
+        cur.execute("SELECT * FROM cognitive_productions WHERE id = ?", (prod1_id,))
+        prod1 = dict(cur.fetchone())
+
+        cur.execute("SELECT * FROM cognitive_productions WHERE id = ?", (prod2_id,))
+        prod2 = dict(cur.fetchone())
+
+        if not prod1 or not prod2:
+            return None
+
+        if fused_name is None:
+            fused_name = f"FUSED_{prod1['name']}_{prod2['name']}"
+
+        components = []
+        if prod1.get("component_rules"):
+            components.extend(json.loads(prod1["component_rules"]))
+        if prod2.get("component_rules"):
+            components.extend(json.loads(prod2["component_rules"]))
+
+        new_abstraction = (
+            max(prod1["abstraction_level"], prod2["abstraction_level"]) + 1
+        )
+        new_confidence = (prod1["confidence"] + prod2["confidence"]) / 2
+
+        return self.add_cognitive_production(
+            production_type="FUSION",
+            name=fused_name,
+            component_rules=components,
+            abstraction_level=new_abstraction,
+            confidence=new_confidence,
+            origin_bot=prod1.get("origin_bot", 1),
+            is_imagined=True,
+            description=f"Fused from {prod1['name']} and {prod2['name']}",
+        )
+
+    # =========================================================================
+    # GL5.1: Hearing Memories Management
+    # =========================================================================
+
+    def add_hearing_memory(
+        self,
+        heard_song: str,
+        heard_from_bot: int,
+        associated_action: int = None,
+        context_perception: str = None,
+        reward_outcome: int = None,
+    ) -> int:
+        """
+        Records a heard song from another robot.
+
+        Args:
+            heard_song: The song/sound that was heard (e.g., "GO_FORWARD")
+            heard_from_bot: ID of the bot that sang
+            associated_action: Action being associated with this sound
+            context_perception: Perception context when heard
+            reward_outcome: Result of the action
+
+        Returns:
+            int: ID of the hearing memory
+        """
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO hearing_memories
+            (heard_song, heard_from_bot, associated_action, context_perception, reward_outcome)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                heard_song,
+                heard_from_bot,
+                associated_action,
+                context_perception,
+                reward_outcome,
+            ),
+        )
+        self.conn.commit()
+        return cur.lastrowid
+
+    def reinforce_hearing_memory(
+        self, heard_song: str, heard_from_bot: int, reward_delta: float
+    ) -> None:
+        """
+        Reinforces hearing memories based on reward outcomes.
+        Positive rewards increase association strength, negative decrease it.
+        """
+        from constants import HEARING_LEARNING_RATE
+
+        cur = self.conn.cursor()
+        strength_change = reward_delta * HEARING_LEARNING_RATE * 0.1
+
+        cur.execute(
+            """
+            UPDATE hearing_memories
+            SET association_strength = MAX(0, MIN(1, association_strength + ?)),
+                times_reinforced = times_reinforced + 1,
+                reward_outcome = COALESCE(?, reward_outcome)
+            WHERE heard_song = ? AND heard_from_bot = ?
+            """,
+            (strength_change, reward_delta, heard_song, heard_from_bot),
+        )
+        self.conn.commit()
+
+    def get_heard_songs(self, min_strength: float = 0.3, limit: int = 50) -> list:
+        """
+        Retrieves heard songs with association strength above threshold.
+        """
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT * FROM hearing_memories
+            WHERE association_strength >= ?
+            ORDER BY association_strength DESC, times_reinforced DESC
+            LIMIT ?
+            """,
+            (min_strength, limit),
+        )
+        return [dict(row) for row in cur.fetchall()]
+
+    def get_song_action_association(self, song: str) -> list:
+        """
+        Gets all action associations for a given song.
+        """
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT associated_action, association_strength, times_reinforced
+            FROM hearing_memories
+            WHERE heard_song = ?
+            ORDER BY association_strength DESC
+            """,
+            (song,),
+        )
+        return [dict(row) for row in cur.fetchall()]
+
+    # =========================================================================
+    # GL5.1: Query Statistics
+    # =========================================================================
+
+    def get_cognitive_stats(self) -> dict:
+        """
+        Returns statistics about cognitive productions.
+        """
+        cur = self.conn.cursor()
+
+        cur.execute("SELECT COUNT(*) FROM cognitive_productions")
+        total_productions = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM cognitive_productions WHERE is_imagined = 1")
+        imagined = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM cognitive_productions WHERE is_heard = 1")
+        heard = cur.fetchone()[0]
+
+        cur.execute(
+            "SELECT AVG(confidence) FROM cognitive_productions WHERE confidence > 0"
+        )
+        avg_confidence = cur.fetchone()[0] or 0
+
+        cur.execute("SELECT SUM(usage_count) FROM cognitive_productions")
+        total_usage = cur.fetchone()[0] or 0
+
+        cur.execute("SELECT COUNT(DISTINCT heard_from_bot) FROM hearing_memories")
+        bots_heard_from = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM hearing_memories")
+        total_heard_memories = cur.fetchone()[0]
+
+        cur.execute(
+            "SELECT AVG(association_strength) FROM hearing_memories WHERE association_strength > 0"
+        )
+        avg_hearing_strength = cur.fetchone()[0] or 0
+
+        return {
+            "total_productions": total_productions,
+            "imagined_productions": imagined,
+            "heard_productions": heard,
+            "avg_confidence": round(avg_confidence, 3),
+            "total_usage": total_usage,
+            "bots_heard_from": bots_heard_from,
+            "total_heard_memories": total_heard_memories,
+            "avg_hearing_strength": round(avg_hearing_strength, 3),
+        }
