@@ -63,6 +63,7 @@ from memory import Memory
 from learner import Learner
 from experiment_logger import ExperimentLogger
 from gwt import GWTIntegrator
+from gl4_logic import VisionWindow, SpeechWindow
 import math
 import graphics
 from graphics import (
@@ -233,6 +234,9 @@ class GeneralLearnerApp:
             btn_x, y_off, btn_w, BTN_HEIGHT, "INFERENCES", ORANGE
         )
         y_off += step_y
+        self.btn_draw = Button(btn_x, y_off, btn_w // 2 - 5, BTN_HEIGHT, "DRAW", (255, 165, 0))
+        self.btn_speak = Button(btn_x + btn_w // 2 + 5, y_off, btn_w // 2 - 5, BTN_HEIGHT, "SPEAK", (100, 150, 255))
+        y_off += step_y
         self.btn_new_maze = Button(btn_x, y_off, btn_w, BTN_HEIGHT, "NEW MAZE", RED)
         y_off += step_y
         self.btn_reset_stagnation = Button(
@@ -249,6 +253,11 @@ class GeneralLearnerApp:
         # UI States
         self.show_pov = False
         self.show_inferences = False
+        
+        # GL4 Sub-Modules
+        self.vision_window = VisionWindow(self.screen, self.memory_bot1, self.learner1)
+        self.speech_window = SpeechWindow(self.screen, self.memory_bot1, self.learner1)
+        self.active_subwindow = None # 'VISION' or 'SPEECH' or None
 
     @property
     def robot(self):
@@ -289,26 +298,25 @@ class GeneralLearnerApp:
         pygame.quit()
 
     def handle_events(self):
-        """
-        - [x] Update `constants.py` with `LIGHT_ORANGE`
-        - [x] Implement `decay_rules` in `memory.py`
-        - [x] Integrate rule decay into `learner.py`'s `sleep_cycle`
-        - [x] Update `main.py` with active-state UI coloring (Light Orange)
-        - [x] Final verification and walkthrough
-        - [x] Extensive English documentation for all core files:
-            - [x] `memory.py`
-            - [x] `learner.py`
-            - [x] `environment.py`
-            - [x] `robot.py`
-            - [x] `main.py`
-            - [x] `graphics.py`
-        - [/] Finalize `README.md` with screenshot and architecture overview
-        - [ ] Verify planning behavior in Autonomous mode
-        """
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+
+            # Redirect events to active sub-window if any
+            if self.active_subwindow == 'VISION':
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    self.active_subwindow = None
+                    continue
+                self.vision_window.handle_event(event)
+                continue
+            
+            if self.active_subwindow == 'SPEECH':
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    self.active_subwindow = None
+                    continue
+                self.speech_window.handle_event(event)
+                continue
 
             # Textbox interaction: only execute step IF 'cmd' is True (when user presses Enter)
             cmd = self.txt_box.handle_event(event)
@@ -317,6 +325,18 @@ class GeneralLearnerApp:
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 pos = event.pos
+
+                # Check subwindow activation
+                if self.btn_draw.is_clicked(pos):
+                    self.active_subwindow = 'VISION'
+                    self.vision_window.memory = self.memory # Use active bot memory
+                    self.vision_window.learner = self.learner # Sync learner for reinforcement
+                    continue
+                elif self.btn_speak.is_clicked(pos):
+                    self.active_subwindow = 'SPEECH'
+                    self.speech_window.memory = self.memory
+                    self.speech_window.learner = self.learner
+                    continue
 
                 # Check sidebar button clicks
                 if self.btn_auto.is_clicked(pos):
@@ -580,7 +600,246 @@ class GeneralLearnerApp:
 
         self.memory.clear_chrono()
         print(f"Dream complete: Consolidated {count} rules/transitions.")
+    
+    def export_cognitive_network_image(self, bot_id, filepath="cognitive_network.png"):
+        """
+        Generates a high-quality visualization of the symbolic cognitive network
+        using matplotlib for research reporting and debug.
+        """
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            import matplotlib.patches as mpatches
+            import math
+            import json
+        except ImportError:
+            print("ERROR: matplotlib not available for graph export")
+            return None
 
+        memory = self.memory_bot1 if bot_id == 1 else self.memory_bot2
+        rules_top = memory.get_rules(limit=300)
+        frames = memory.get_all_frames()
+        prods = memory.get_cognitive_productions(limit=30)
+        heard = memory.get_heard_songs(limit=20)
+
+        if not rules_top and not prods:
+            print(f"Warning: No knowledge found for Bot {bot_id} export.")
+            return None
+
+        # Build rule_map and ensure all component rules of visible prods are included
+        rule_map = {r["id"]: r for r in rules_top}
+        component_rule_ids = set()
+        import json
+        for prod in prods:
+            if prod["component_rules"]:
+                try:
+                    ids = json.loads(prod["component_rules"])
+                    component_rule_ids.update(ids)
+                except:
+                    pass
+        
+        # Fetch missing component rules to ensure links are draw-able
+        missing_ids = [rid for rid in component_rule_ids if rid not in rule_map]
+        if missing_ids:
+            try:
+                cur = memory.conn.cursor()
+                placeholders = ",".join(["?"] * len(missing_ids))
+                cur.execute(f"SELECT * FROM rules WHERE id IN ({placeholders})", missing_ids)
+                for row in cur.fetchall():
+                    rule_map[row["id"]] = dict(row)
+            except:
+                pass
+
+        all_relevant_rules = list(rule_map.values())
+
+        # Get concept labels for RFT mapping
+        concept_labels = {}
+        try:
+            cur = memory.conn.cursor()
+            cur.execute("SELECT id, value FROM conceptual_ids")
+            for row in cur.fetchall():
+                concept_labels[row["id"]] = row["value"]
+        except:
+            pass
+
+        # Create figure
+        fig, ax = plt.subplots(1, 1, figsize=(18, 14)) # Slightly smaller, denser
+        ax.set_xlim(-12, 12)
+        ax.set_ylim(-12, 12)
+        ax.set_aspect("equal")
+        ax.axis("off")
+
+        ax.set_title(
+            f"Symbolic Cognitive Architecture - Bot {bot_id}\n"
+            f"Consolidated Rules: {len(all_relevant_rules)} | RFT Frames: {len(frames)} | "
+            f"CogProds: {len(prods)} | Hearing: {len(heard)}",
+            fontsize=18, fontweight="bold", pad=20, color="#2C3E50"
+        )
+
+        node_pos = {}
+        node_colors = []
+        node_labels = {}
+        node_sizes = []
+        node_types = {}
+
+        action_names = {0: "LEFT", 1: "RIGHT", 2: "FORWARD", 3: "BACK"}
+
+        # 1. Action Nodes (Center)
+        for i in range(4):
+            name = action_names[i]
+            node_pos[name] = (1.5 * math.cos(i * 3.14/2), 1.5 * math.sin(i * 3.14/2))
+            node_colors.append("#FF6B6B") # Red
+            node_sizes.append(1500)
+            node_labels[name] = name
+            node_types[name] = "action"
+
+        # 2. Percept & Self Nodes
+        processed_percepts = set()
+        self_nodes = []
+        percept_nodes = []
+        for rule in all_relevant_rules:
+            perc = rule.get("perception_pattern", "")
+            if isinstance(perc, str):
+                try: perc = json.loads(perc)
+                except: perc = {}
+            
+            if isinstance(perc, dict):
+                for key, val in perc.items():
+                    node_key = f"{key}:{val}"
+                    if key.startswith("SELF_"):
+                        if key not in self_nodes: self_nodes.append(key)
+                    elif val != "ANY" and node_key not in processed_percepts:
+                        percept_nodes.append(node_key)
+                        processed_percepts.add(node_key)
+
+        # Layout Self-Concepts
+        for i, node in enumerate(self_nodes[:25]):
+            angle = i * (2 * 3.14 / max(len(self_nodes[:25]), 1))
+            node_pos[node] = (4.0 * math.cos(angle), 4.0 * math.sin(angle))
+            node_colors.append("#FFE66D") # Yellow
+            node_sizes.append(800)
+            node_labels[node] = node.replace("SELF_", "S_")[:10]
+            node_types[node] = "self"
+
+        # Layout Percepts
+        for i, node in enumerate(percept_nodes[:50]):
+            angle = i * (2 * 3.14 / max(len(percept_nodes[:50]), 1)) + 0.2
+            dist = 6.2 + (i % 3) * 0.6
+            node_pos[node] = (dist * math.cos(angle), dist * math.sin(angle))
+            node_colors.append("#4ECDC4") # Teal
+            node_sizes.append(500)
+            node_labels[node] = node.split(":")[-1][:8]
+            node_types[node] = "percept"
+
+        # 3. Cognitive Productions
+        for i, prod in enumerate(prods):
+            name = prod["name"]
+            angle = i * (2 * 3.14 / max(len(prods), 1))
+            node_pos[name] = (9.5 * math.cos(angle), 9.5 * math.sin(angle))
+            node_colors.append("#9B59B6") # Purple
+            node_sizes.append(1000)
+            node_labels[name] = name[:12]
+            node_types[name] = "prod"
+
+        # 4. Heard Songs
+        for i, h in enumerate(heard):
+            name = f"SONG_{h['heard_song']}"
+            angle = i * (2 * 3.14 / max(len(heard), 1)) - 0.5
+            node_pos[name] = (11.0 * math.cos(angle), 11.0 * math.sin(angle))
+            node_colors.append("#3498DB") # Blue
+            node_sizes.append(700)
+            node_labels[name] = h["heard_song"][:10]
+            node_types[name] = "heard"
+
+        # DRAW EDGES
+        # a) Rules (Green/Red)
+        for rule in all_relevant_rules:
+            action = rule["target_action"]
+            weight = rule.get("weight", 1.0)
+            perc = rule["perception_pattern"]
+            if isinstance(perc, str):
+                try: perc = json.loads(perc)
+                except: perc = {}
+            
+            target = action_names.get(action)
+            if target and isinstance(perc, dict):
+                for key, val in perc.items():
+                    source = f"{key}:{val}" if not key.startswith("SELF_") else key
+                    if source in node_pos and target in node_pos:
+                        style = "-" if rule.get("is_composite", 0) == 0 else "--"
+                        alpha = min(0.7, 0.15 + abs(weight)/15.0)
+                        edge_color = "#1B5E20" if weight > 0 else "#B71C1C"
+                        ax.annotate("", xy=node_pos[target], xytext=node_pos[source],
+                                    arrowprops=dict(arrowstyle="->", color=edge_color, 
+                                                  lw=1.2 + abs(weight)/10, alpha=alpha, linestyle=style,
+                                                  connectionstyle="arc3,rad=0.1"))
+
+        # b) CogProduction component links (Salient Purple lines)
+        for prod in prods:
+            p_name = prod["name"]
+            if p_name in node_pos and prod["component_rules"]:
+                try:
+                    comp_ids = json.loads(prod["component_rules"])
+                    for rid in comp_ids:
+                        if rid in rule_map:
+                            r = rule_map[rid]
+                            # Link to the action
+                            a_target = action_names.get(r["target_action"])
+                            if a_target in node_pos:
+                                ax.plot([node_pos[p_name][0], node_pos[a_target][0]], 
+                                        [node_pos[p_name][1], node_pos[a_target][1]], 
+                                        color="#8E44AD", alpha=0.3, lw=2.0, zorder=1)
+                            # Link to the percepts
+                            r_perc = r["perception_pattern"]
+                            if isinstance(r_perc, str): r_perc = json.loads(r_perc)
+                            if isinstance(r_perc, dict):
+                                for pk, pv in r_perc.items():
+                                    p_src = f"{pk}:{pv}" if not pk.startswith("SELF_") else pk
+                                    if p_src in node_pos:
+                                        ax.plot([node_pos[p_name][0], node_pos[p_src][0]], 
+                                                [node_pos[p_name][1], node_pos[p_src][1]], 
+                                                color="#8E44AD", alpha=0.2, lw=1.0, zorder=1)
+                except: pass
+
+        # c) RFT Frames
+        for frame in frames:
+            c1 = concept_labels.get(frame["concept_a"])
+            c2 = concept_labels.get(frame["concept_b"])
+            rel = frame["relation_type"]
+            if c1 in node_pos and c2 in node_pos:
+                color = "#27AE60" if rel == "COORD" else "#E67E22"
+                style = ":" if rel == "OPP" else "-."
+                ax.plot([node_pos[c1][0], node_pos[c2][0]], [node_pos[c1][1], node_pos[c2][1]], 
+                        color=color, linestyle=style, alpha=min(0.9, frame["strength"] + 0.3), lw=2.0)
+
+        # DRAW NODES
+        for name, pos in node_pos.items():
+            idx = list(node_pos.keys()).index(name)
+            color = node_colors[idx]
+            size = node_sizes[idx]
+            ax.scatter(pos[0], pos[1], s=size, color=color, edgecolors="#FDFDFD", linewidth=1.5, zorder=5)
+            ax.text(pos[0], pos[1], node_labels.get(name, ""), ha="center", va="center", 
+                    fontsize=8, fontweight="bold", color="#2C3E50" if color == "#FFE66D" else "white", zorder=6)
+
+        # LEGEND
+        legend_elements = [
+            mpatches.Patch(color="#FF6B6B", label="Actions (Motor)"),
+            mpatches.Patch(color="#4ECDC4", label="Percepts (Sensory)"),
+            mpatches.Patch(color="#FFE66D", label="Self-Concepts (Identity)"),
+            mpatches.Patch(color="#9B59B6", label="CogProductions (Abstraction)"),
+            mpatches.Patch(color="#3498DB", label="Hearing (Social)"),
+            plt.Line2D([0], [0], color="#2ECC71", lw=2, label="COORD Frame"),
+            plt.Line2D([0], [0], color="#E67E22", lw=2, label="OPP Frame"),
+            plt.Line2D([0], [0], color="#8E44AD", alpha=0.6, label="Schema Bond"),
+        ]
+        ax.legend(handles=legend_elements, loc="upper right", frameon=True, shadow=True, fontsize=10)
+
+        plt.tight_layout()
+        plt.savefig(filepath, dpi=180, bbox_inches="tight", facecolor="#F8F9FA")
+        plt.close()
+
+        print(f"Enhanced Cognitive Network exported to: {filepath}")
         self._in_dream = False
         self._dream_cooldown = 60
 
@@ -597,7 +856,7 @@ class GeneralLearnerApp:
         print("Knowledge exported to db_export.txt")
 
     def export_report(self):
-        """Generates a comprehensive research-quality report for both bots."""
+        """Generates a comprehensive research-quality report and network graphs for both bots."""
         import datetime
         from constants import MEMORY_EPISODIC, MEMORY_SEMANTIC, MEMORY_DERIVED
 
@@ -616,27 +875,23 @@ class GeneralLearnerApp:
                 learner = self.learner1 if bot_id == 1 else self.learner2
                 robot = self.robot1 if bot_id == 1 else self.robot2
 
+                # Generate Graphs
+                self.export_cognitive_network_image(bot_id=bot_id, filepath=f"bot{bot_id}_network.png")
+
                 rules = memory.get_rules()
                 episodic = [r for r in rules if r.get("memory_type") == MEMORY_EPISODIC]
                 semantic = [r for r in rules if r.get("memory_type") == MEMORY_SEMANTIC]
                 derived = [r for r in rules if r.get("memory_type") == MEMORY_DERIVED]
-
-                concepts = memory.conn.execute(
-                    "SELECT id, value FROM conceptual_ids"
-                ).fetchall()
+                
+                # ... rest of the export code ...
+                concepts = memory.conn.execute("SELECT id, value FROM conceptual_ids").fetchall()
                 try:
-                    derived_cmd_ids = memory.conn.execute(
-                        "SELECT DISTINCT command_id FROM rules WHERE command_id IS NOT NULL"
-                    ).fetchall()
+                    derived_cmd_ids = memory.conn.execute("SELECT DISTINCT command_id FROM rules WHERE command_id IS NOT NULL").fetchall()
                     compound_concepts_ids = set(r[0] for r in derived_cmd_ids if r[0])
                 except:
                     compound_concepts_ids = set()
-                simple_concepts = [
-                    c for c in concepts if c[0] not in compound_concepts_ids
-                ]
-                compound_concepts = [
-                    c for c in concepts if c[0] in compound_concepts_ids
-                ]
+                simple_concepts = [c for c in concepts if c[0] not in compound_concepts_ids]
+                compound_concepts = [c for c in concepts if c[0] in compound_concepts_ids]
 
                 frames = memory.get_all_frames()
                 coord_frames = [fr for fr in frames if fr["relation_type"] == "COORD"]
@@ -644,7 +899,6 @@ class GeneralLearnerApp:
 
                 weights = [r["weight"] for r in rules] if rules else [0]
                 avg_weight = sum(weights) / len(weights) if weights else 0
-
                 action_counts = {}
                 for r in rules:
                     a = r["target_action"]
@@ -652,9 +906,7 @@ class GeneralLearnerApp:
                 action_names = {0: "FORWARD", 1: "BACKWARD", 2: "LEFT", 3: "RIGHT"}
 
                 f.write(f"\n{'=' * 60}\n")
-                f.write(
-                    f"### BOT {bot_id} REPORT {'(ACTIVE)' if self.active_bot == bot_id else ''}\n"
-                )
+                f.write(f"### BOT {bot_id} REPORT {'(ACTIVE)' if self.active_bot == bot_id else ''}\n")
                 f.write(f"{'=' * 60}\n")
 
                 f.write("\n### EXECUTIVE SUMMARY\n")
@@ -677,9 +929,10 @@ class GeneralLearnerApp:
                 f.write(f"  Compound Concepts:  {len(compound_concepts)}\n")
 
                 f.write("\n### ACTION DISTRIBUTION\n")
-                for act, count in sorted(action_counts.items()):
+                sorted_actions = sorted(action_counts.items(), key=lambda x: x[0])
+                for act, count in sorted_actions:
                     name = action_names.get(act, f"ACT_{act}")
-                    pct = (count / len(rules) * 100) if rules else 0
+                    pct = (count / max(1, sum(action_counts.values())) * 100)
                     f.write(f"  {name:10s}: {count:4d} ({pct:5.1f}%)\n")
 
                 f.write("\n### RFT RELATIONSHIPS\n")
@@ -690,17 +943,11 @@ class GeneralLearnerApp:
                 f.write("\n### HOMEOSTASIS\n")
                 f.write(f"  Final Hunger:       {robot.hunger}\n")
                 f.write(f"  Final Tiredness:    {robot.tiredness}\n")
-                f.write(
-                    f"  Bayesian Mode:      {'ENABLED' if learner.bayesian else 'DISABLED'}\n"
-                )
+                f.write(f"  Bayesian Mode:      {'ENABLED' if learner.bayesian else 'DISABLED'}\n")
 
                 f.write("\n### LEARNING EFFICIENCY\n")
-                score_per_step = (
-                    robot.score / self.total_steps if self.total_steps > 0 else 0
-                )
-                rules_per_step = (
-                    len(rules) / self.total_steps if self.total_steps > 0 else 0
-                )
+                score_per_step = (robot.score / self.total_steps if self.total_steps > 0 else 0)
+                rules_per_step = (len(rules) / self.total_steps if self.total_steps > 0 else 0)
                 f.write(f"  Score/Step:         {score_per_step:.4f}\n")
                 f.write(f"  Rules/Step:         {rules_per_step:.4f}\n")
                 f.write(
@@ -815,6 +1062,8 @@ class GeneralLearnerApp:
         self.btn_bayes.draw(self.screen)
         self.btn_pov.draw(self.screen)
         self.btn_inferences.draw(self.screen)
+        self.btn_draw.draw(self.screen)
+        self.btn_speak.draw(self.screen)
         self.btn_new_maze.draw(self.screen)
         self.btn_reset_stagnation.draw(self.screen)
 
@@ -827,7 +1076,13 @@ class GeneralLearnerApp:
         # 3. Cognitive Dashboard
         self.draw_reports()
 
-        # 4. POV (3D Raycasting) - Positioned to the right of cognitive performance
+        # 4. GL4 Sub-Windows Render (Overlays)
+        if self.active_subwindow == 'VISION':
+            self.vision_window.draw()
+        elif self.active_subwindow == 'SPEECH':
+            self.speech_window.draw()
+
+        # 5. POV (3D Raycasting)
         if self.show_pov:
             rep_x = CANVAS_WIDTH + PANEL_WIDTH + 10
             rep_w = REPORT_WIDTH - 30
@@ -973,259 +1228,7 @@ class GeneralLearnerApp:
             self.screen.blit(surf, (rep_x, insight_y + i * 20))
 
 
+
 if __name__ == "__main__":
     app = GeneralLearnerApp()
     app.run()
-
-# =============================================================================
-# OPTIMIZED COGNITIVE NETWORK VISUALIZATION EXPORTER
-# =============================================================================
-
-def export_cognitive_network_image(app, bot_id=1, filepath=None):
-    """
-    GL5.1: Exports an optimized visual graph of the robot's conceptual network.
-    Correctly connects RFT frames, Cognitive Productions, and Macros.
-    """
-    try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        import matplotlib.patches as mpatches
-        import math
-        import json
-    except ImportError:
-        print("ERROR: matplotlib not available for graph export")
-        return None
-
-    learner = app.learner1 if bot_id == 1 else app.learner2
-    memory = learner.memory
-
-    if filepath is None:
-        filepath = f"cognitive_network_bot{bot_id}.png"
-
-    # Collect all knowledge components
-    rules = memory.get_rules(limit=500)
-    frames = memory.get_all_frames()
-    prods = memory.get_cognitive_productions(limit=50)
-    heard = memory.get_heard_songs(min_strength=0.1, limit=30)
-    
-    # Get concept labels for RFT mapping
-    concept_labels = {}
-    try:
-        cur = memory.conn.cursor()
-        cur.execute("SELECT id, value FROM conceptual_ids")
-        for row in cur.fetchall():
-            concept_labels[row["id"]] = row["value"]
-    except:
-        pass
-
-    # Create figure
-    fig, ax = plt.subplots(1, 1, figsize=(24, 18))
-    ax.set_xlim(-12, 12)
-    ax.set_ylim(-12, 12)
-    ax.set_aspect("equal")
-    ax.axis("off")
-
-    ax.set_title(
-        f"Symbolic Cognitive Architecture - Bot {bot_id}\n"
-        f"Rules: {len(rules)} | RFT Frames: {len(frames)} | "
-        f"CogProds: {len(prods)} | Hearing: {len(heard)}",
-        fontsize=18, fontweight="bold", pad=20, color="#2C3E50"
-    )
-
-    node_pos = {}
-    node_colors = []
-    node_labels = {}
-    node_sizes = []
-    node_types = {} # Store type for edge logic
-
-    # Categories for radial layout
-    action_nodes = []
-    percept_nodes = []
-    self_nodes = []
-    prod_nodes = []
-    heard_nodes = []
-    
-    action_names = {0: "LEFT", 1: "RIGHT", 2: "FORWARD", 3: "BACK"}
-
-    # 1. Action Nodes (Center)
-    for i in range(4):
-        name = action_names[i]
-        action_nodes.append(name)
-        node_pos[name] = (1.5 * math.cos(i * 3.14/2), 1.5 * math.sin(i * 3.14/2))
-        node_colors.append("#FF6B6B") # Red
-        node_sizes.append(1200)
-        node_labels[name] = name
-        node_types[name] = "action"
-
-    # 2. Percept & Self Nodes (Middle Rings)
-    processed_percepts = set()
-    for rule in rules[:150]:
-        perc = rule.get("perception_pattern", "")
-        if isinstance(perc, str):
-            try: perc = json.loads(perc)
-            except: perc = {}
-        
-        if isinstance(perc, dict):
-            for key, val in perc.items():
-                node_key = f"{key}:{val}"
-                if key.startswith("SELF_"):
-                    if key not in self_nodes: self_nodes.append(key)
-                elif val != "ANY" and node_key not in processed_percepts:
-                    percept_nodes.append(node_key)
-                    processed_percepts.add(node_key)
-
-    # Layout Self-Concepts
-    for i, node in enumerate(self_nodes[:20]):
-        angle = i * (2 * 3.14 / max(len(self_nodes[:20]), 1))
-        node_pos[node] = (4.0 * math.cos(angle), 4.0 * math.sin(angle))
-        node_colors.append("#FFE66D") # Yellow
-        node_sizes.append(700)
-        node_labels[node] = node.replace("SELF_", "S_")[:10]
-        node_types[node] = "self"
-
-    # Layout Percepts
-    for i, node in enumerate(percept_nodes[:40]):
-        angle = i * (2 * 3.14 / max(len(percept_nodes[:40]), 1)) + 0.2
-        dist = 6.5 + (i % 2) * 0.8 # Jitter for less overlap
-        node_pos[node] = (dist * math.cos(angle), dist * math.sin(angle))
-        node_colors.append("#4ECDC4") # Teal
-        node_sizes.append(400)
-        node_labels[node] = node.split(":")[-1][:8]
-        node_types[node] = "percept"
-
-    # 3. Cognitive Productions (Outer Ring)
-    for i, prod in enumerate(prods[:25]):
-        name = prod["name"]
-        prod_nodes.append(name)
-        angle = i * (2 * 3.14 / max(len(prods[:25]), 1))
-        node_pos[name] = (9.5 * math.cos(angle), 9.5 * math.sin(angle))
-        node_colors.append("#9B59B6") # Purple
-        node_sizes.append(800)
-        node_labels[name] = name[:12]
-        node_types[name] = "prod"
-
-    # 4. Heard Songs
-    for i, h in enumerate(heard[:15]):
-        name = f"SONG_{h['heard_song']}"
-        heard_nodes.append(name)
-        angle = i * (2 * 3.14 / max(len(heard[:15]), 1)) - 0.5
-        node_pos[name] = (11.0 * math.cos(angle), 11.0 * math.sin(angle))
-        node_colors.append("#3498DB") # Blue
-        node_sizes.append(600)
-        node_labels[name] = h["heard_song"][:10]
-        node_types[name] = "heard"
-
-    # DRAW EDGES
-    # a) Rules (Green/Red)
-    rule_map = {r["id"]: r for r in rules}
-    for rule in rules[:250]:
-        action = rule["target_action"]
-        weight = rule["weight"]
-        perc = rule["perception_pattern"]
-        if isinstance(perc, str):
-            try: perc = json.loads(perc)
-            except: perc = {}
-        
-        target = action_names.get(action)
-        if target and isinstance(perc, dict):
-            for key, val in perc.items():
-                source = f"{key}:{val}" if not key.startswith("SELF_") else key
-                if source in node_pos and target in node_pos:
-                    style = "-" if rule["is_composite"] == 0 else "--"
-                    alpha = min(0.8, 0.2 + abs(weight)/10.0)
-                    ax.annotate("", xy=node_pos[target], xytext=node_pos[source],
-                                arrowprops=dict(arrowstyle="->", color="#1B5E20" if weight > 0 else "#B71C1C", 
-                                              lw=1.5 + abs(weight)/8, alpha=alpha, linestyle=style))
-
-    # b) RFT Frames (Darker and thicker)
-    for frame in frames[:30]:
-        c1 = concept_labels.get(frame["concept_a"])
-        c2 = concept_labels.get(frame["concept_b"])
-        rel = frame["relation_type"]
-        if c1 in node_pos and c2 in node_pos:
-            color = "#2E7D32" if rel == "COORD" else "#C62828"
-            style = ":" if rel == "OPP" else "-."
-            ax.plot([node_pos[c1][0], node_pos[c2][0]], [node_pos[c1][1], node_pos[c2][1]], 
-                    color=color, linestyle=style, alpha=min(1.0, frame["strength"] + 0.2), lw=2.5)
-
-    # c) Cognitive Production Component Connections (Higher contrast)
-    for prod in prods[:15]:
-        p_name = prod["name"]
-        if p_name in node_pos and prod["component_rules"]:
-            try:
-                comp_ids = json.loads(prod["component_rules"])
-                for rid in comp_ids:
-                    if rid in rule_map:
-                        r = rule_map[rid]
-                        a_target = action_names.get(r["target_action"])
-                        if a_target in node_pos:
-                            ax.plot([node_pos[p_name][0], node_pos[a_target][0]], 
-                                    [node_pos[p_name][1], node_pos[a_target][1]], 
-                                    color="#6A1B9A", alpha=0.4, lw=1.5)
-            except: pass
-
-    # DRAW NODES
-    for name, pos in node_pos.items():
-        idx = list(node_pos.keys()).index(name)
-        color = node_colors[idx]
-        size = node_sizes[idx]
-        ax.scatter(pos[0], pos[1], s=size, color=color, edgecolors="white", linewidth=1.5, zorder=5)
-        ax.text(pos[0], pos[1], node_labels.get(name, ""), ha="center", va="center", 
-                fontsize=7, fontweight="bold", color="#2C3E50" if color == "#FFE66D" else "white", zorder=6)
-
-    # LEGEND
-    legend_elements = [
-        mpatches.Patch(color="#FF6B6B", label="Actions (Motor)"),
-        mpatches.Patch(color="#4ECDC4", label="Percepts (Sensory)"),
-        mpatches.Patch(color="#FFE66D", label="Self-Concepts (Identity)"),
-        mpatches.Patch(color="#9B59B6", label="CogProductions (Abstraction)"),
-        mpatches.Patch(color="#3498DB", label="Hearing (Social)"),
-        plt.Line2D([0], [0], color="#2ECC71", label="COORD Frame / Pos Rule"),
-        plt.Line2D([0], [0], color="#E74C3C", label="OPP Frame / Neg Rule"),
-        plt.Line2D([0], [0], color="gray", linestyle="--", label="Macro (Composite)"),
-    ]
-    ax.legend(handles=legend_elements, loc="upper right", frameon=True, shadow=True)
-
-    plt.tight_layout()
-    plt.savefig(filepath, dpi=150, bbox_inches="tight", facecolor="#F8F9FA")
-    plt.close()
-
-    print(f"Expert Cognitive Network exported to: {filepath}")
-    return filepath
-
-
-def export_learning_trajectory_csv(app, bot_id=1, filepath=None):
-    """
-    Exports learning trajectory data to CSV for analysis.
-    """
-    learner = app.learner1 if bot_id == 1 else app.learner2
-    memory = learner.memory
-
-    if filepath is None:
-        filepath = f"learning_trajectory_bot{bot_id}.csv"
-
-    import csv
-
-    rules = memory.get_rules(limit=10000)
-    
-    rows = []
-    for i, rule in enumerate(rules):
-        rows.append({
-            "bot_id": bot_id,
-            "rule_id": rule.get("id", i),
-            "perception": str(rule.get("perception_pattern", ""))[:100],
-            "action": rule.get("target_action", -1),
-            "weight": rule.get("weight", 0),
-            "memory_type": rule.get("memory_type", 0),
-            "is_composite": rule.get("is_composite", 0)
-        })
-
-    with open(filepath, "w", newline="") as f:
-        if rows:
-            writer = csv.DictWriter(f, fieldnames=rows[0].keys())
-            writer.writeheader()
-            writer.writerows(rows)
-
-    print(f"Learning trajectory exported to: {filepath}")
-    return filepath

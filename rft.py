@@ -612,6 +612,42 @@ class RelationalFrameEngine:
         """Get statistics from last run cycle."""
         return self._last_run_stats
 
+    def close_transitivity(self, memory):
+        """
+        =========================================================================
+        COMBINATORIAL ENTAILMENT (TRANSITIVITY) - GL5
+        =========================================================================
+        If concept A is COORD to B, and B is COORD to C, then A is COORD to C.
+        """
+        frames = memory.get_all_frames()
+        coord_frames = [f for f in frames if f["relation_type"] == "COORD"]
+        
+        if len(coord_frames) < 2:
+            return 0
+            
+        added = 0
+        # Build adjacency for coordination
+        adj = {}
+        for f in coord_frames:
+            a, b = f["concept_a"], f["concept_b"]
+            if a not in adj: adj[a] = set()
+            if b not in adj: adj[b] = set()
+            adj[a].add((b, f["strength"]))
+            adj[b].add((a, f["strength"]))
+            
+        # One-step transitivity
+        for a in adj:
+            for b, s1 in adj[a]:
+                for c, s2 in adj.get(b, []):
+                    if a != c:
+                        strength = s1 * s2 * 0.9  # Slight decay
+                        if strength > 0.3:
+                            memory.add_relational_frame(a, "COORD", c, strength)
+                            added += 1
+                            if added >= MAX_TRANSITIVE_FRAMES:
+                                return added
+        return added
+
     def clear_cache(self):
         """Clear the internal cache."""
         self._cache.clear()

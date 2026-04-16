@@ -358,6 +358,14 @@ Biological: Hippocampal buffer - 20-30 minute window.
 15% loss per cycle - faster than semantic but slower than episodic.
 """
 
+DECAY_RATE_PROTECTED = 0.98
+"""
+GL5: Protected decay rate for schematic/integrated knowledge.
+When a piece of information is part of a CognitiveProduction, it
+is protected from rapid forgetting, representing stable long-term
+conceptual structures. retention = 98%.
+"""
+
 # ====================
 # Relational Frame Theory (RFT) Parameters
 # ====================

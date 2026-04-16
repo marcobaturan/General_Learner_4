@@ -683,8 +683,39 @@ class Memory:
         # Prune weak entries from intermediate memory
         cur.execute("DELETE FROM intermediate_memory WHERE weight < ?", (0.3,))
 
+        # GL5.1: Protection of schematic/integrated knowledge
+        # Rules that are part of a production decay much slower.
+        protected_ids = self.get_protected_rule_ids()
+        if protected_ids:
+            from constants import DECAY_RATE_PROTECTED, DECAY_RATE_SEMANTIC
+            # Use placeholders for the IN clause
+            placeholders = ",".join(["?"] * len(protected_ids))
+            cur.execute(
+                f"UPDATE rules SET weight = weight / ? * ? WHERE id IN ({placeholders})",
+                (DECAY_RATE_SEMANTIC, DECAY_RATE_PROTECTED, *protected_ids)
+            )
+
         cur.execute("DELETE FROM rules WHERE weight < ?", (FORGET_THRESHOLD,))
         self.conn.commit()
+
+    def get_protected_rule_ids(self) -> set:
+        """
+        Identifies all rule IDs that are part of any CognitiveProduction.
+        These are considered 'protected' from rapid forgetting.
+        """
+        import json
+        cur = self.conn.cursor()
+        cur.execute("SELECT component_rules FROM cognitive_productions")
+        protected = set()
+        for row in cur.fetchall():
+            if row[0]:
+                try:
+                    ids = json.loads(row[0])
+                    if isinstance(ids, list):
+                        protected.update(ids)
+                except:
+                    pass
+        return protected
 
     def get_all_chrono(self):
         """
@@ -1330,3 +1361,39 @@ class Memory:
             "total_heard_memories": total_heard_memories,
             "avg_hearing_strength": round(avg_hearing_strength, 3),
         }
+
+    def get_multimodal_pairs(self) -> list:
+        """
+        Retrieves potential multimodal associations.
+        Scans for SPEECH_PATTERN responses that match VISUAL_PATTERN names.
+
+        Returns:
+            list: List of (speech_prod, visual_prod, match_token) tuples.
+        """
+        speech_prods = self.get_cognitive_productions(production_type="SPEECH_PATTERN")
+        visual_prods = self.get_cognitive_productions(production_type="VISUAL_PATTERN")
+
+        pairs = []
+        for v in visual_prods:
+            v_name = v["name"].upper().strip()
+            for s in speech_prods:
+                try:
+                    data = json.loads(s["description"])
+                    raw_resp = data.get("response") or ""
+                    resp = str(raw_resp).upper().strip()
+                    if v_name == resp and resp != "":
+                        pairs.append((s, v, resp))
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    continue
+        return pairs
+
+    def consolidate_database(self):
+        """
+        Compacts the database to reclaim unused space and rebuild indexes.
+        Call this during sleep cycles for optimal performance.
+        """
+        cur = self.conn.cursor()
+        cur.execute("VACUUM")
+        cur.execute("ANALYZE")
+        self.conn.commit()
+        print("Database consolidated and optimized.")

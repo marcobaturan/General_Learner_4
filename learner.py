@@ -202,6 +202,12 @@ class Learner:
         self._last_reward_was_positive = True  # Track reward for idle detection
         self._imagined_productions = []  # Productions created in imagination
 
+        # GL5.1: Body State & Homeostasis
+        self.energy = 100.0
+        self.valence = 0.0  # Emotional tone (pleasure/pain balance)
+        self.stress = 0.0  # Collision/penalty tally
+        self._last_body_update = time.time()
+
     def act(self, robot, text_command=None, other_bot=None, gwt_context=None):
         """
         Determines the next action -- the core decision function.
@@ -651,11 +657,28 @@ class Learner:
             self._check_vicarious_recovery()
 
         if best_action is not None:
+            # GL5.1: Update Body State based on result of decision
+            self._update_body_state(robot)
+            
             self.action_history.append(best_action)
             if len(self.action_history) > 10:
                 self.action_history.pop(0)
 
         return best_action
+            
+    def _update_body_state(self, robot):
+        """Updates internal body state metrics based on robot's metabolic variables."""
+        # Hunger decreases energy
+        self.energy = max(0.0, 100.0 - (robot.hunger * 0.5))
+        
+        # Valence is moving average of reward
+        self.valence = (self.valence * 0.9) + (getattr(robot, 'last_action_reward', 0) * 0.1)
+        
+        # Stress increases with collisions
+        if getattr(robot, 'last_collision', False):
+            self.stress = min(100.0, self.stress + 5.0)
+        else:
+            self.stress = max(0.0, self.stress - 0.5)
 
     def _get_action_for_concept(self, concept_id, rules):
         """
@@ -1195,19 +1218,28 @@ class Learner:
         Returns:
             int: Number of new rules created
         """
-        # 1. Apply forgetting
+        # 1. GL5.1: High-level reasoning (always runs during sleep cycle)
+        # These don't depend on episodic history existence
+        
+        # GL5: RFT derivation cycle
+        rft_result = self.rft_engine.run_cycle(self.memory)
+        
+        # GL5: Semantic Dreaming (Multimodal Synthesis)
+        dream_results = self._semantic_dreaming()
+        new_rules_count = dream_results.get("new_rules", 0)
+
+        # 2. Apply forgetting
         self.memory.decay_rules()
 
         # Fetch episodic history
         history = self.memory.get_all_chrono()
         if not history:
-            return 0
+            return new_rules_count
 
-        new_rules_count = 0
-
-        # 2. Macro induction
+        # 3. Macro induction
         i = 0
         while i < len(history):
+            # ... (rest of macro logic)
             cmd_text = history[i]["command_text"]
             if cmd_text and len(cmd_text) > 3:
                 seq = []
@@ -1283,10 +1315,73 @@ class Learner:
 
         self.memory.clear_chrono()
 
-        # 4. GL5: RFT derivation cycle
-        rft_result = self.rft_engine.run_cycle(self.memory)
-
         return new_rules_count
+
+    def _semantic_dreaming(self):
+        """
+        Multimodal Synthesis phase: Analysis, Resolution, Synthesis, Generalization.
+        
+        This process consolidates speech and vision into a unified world model.
+        """
+        stats = {"new_rules": 0, "anchors": 0, "frames": 0}
+        
+        # 1. ANALYSIS & RESOLUTION: Find cross-modal overlaps
+        pairs = self.memory.get_multimodal_pairs()
+        
+        for s_prod, v_prod, token in pairs:
+            # 2. SYNTHESIS: Create absolute COORD frame between token and template
+            # Get concept IDs for both
+            v_concept_id = self.memory.get_or_create_concept_id(v_prod["name"])
+            s_concept_id = self.memory.get_or_create_concept_id(token)
+            
+            # Create Multimodal Anchor (High-level production)
+            self.memory.add_cognitive_production(
+                production_type="MULTIMODAL_ANCHOR",
+                name=f"LINK_{token}",
+                description=json.dumps({
+                    "speech_id": s_prod["id"],
+                    "vision_id": v_prod["id"],
+                    "token": token
+                }),
+                confidence=0.8,
+                abstraction_level=3,
+                is_imagined=True
+            )
+            stats["anchors"] += 1
+            
+            # Create RFT frame linking the visual concept to the speech response
+            # This enables linguistic commands to trigger visual imagery
+            self.memory.add_relational_frame(v_concept_id, "COORD", s_concept_id, 0.9)
+            stats["frames"] += 1
+            
+        # 3. GENERALIZATION: Derive drawing rules for speech commands
+        # If we have a spoken pattern with response 'X' and 'X' is a visual template,
+        # create a rule for 'DRAW X' in the decision cascade.
+        speech_prods = self.memory.get_cognitive_productions(production_type="SPEECH_PATTERN")
+        for s in speech_prods:
+            try:
+                data = json.loads(s["description"])
+                resp = data.get("response", "").upper()
+                
+                # Check if we have a visual template for this response
+                v_prods = self.memory.get_cognitive_productions(production_type="VISUAL_PATTERN")
+                for v in v_prods:
+                    if v["name"].upper() == resp:
+                        # Create a derived rule: Perception [ANY] + Command [RESP] -> DRAW TEMPLATE
+                        # Note: We represent "Drawing" as a specific set of rules in GL5
+                        self.memory.add_rule(
+                            perception_pattern=None,
+                            action=5, # Custom Action ID for 'DRAW' (if defined) or logic trigger
+                            weight=5.0,
+                            command_id=self.memory.get_or_create_concept_id(resp),
+                            memory_type=MEMORY_DERIVED,
+                            description=f"Derived drawing link for {resp}"
+                        )
+                        stats["new_rules"] += 1
+            except:
+                continue
+                
+        return stats
 
     def _update_stagnation(self, robot):
         """
