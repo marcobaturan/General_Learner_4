@@ -1,8 +1,8 @@
 ============================================================
        GENERAL LEARNER 5 - DUAL BOT RESEARCH REPORT
 ============================================================
-Generated: 2026-04-16 14:36:39
-Session Duration: 0 steps
+Generated: 2026-04-16 17:18:58
+Session Duration: 3039 steps
 ------------------------------------------------------------
 
 ============================================================
@@ -10,88 +10,88 @@ Session Duration: 0 steps
 ============================================================
 
 ### EXECUTIVE SUMMARY
-  Total Steps:         0
-  Final Score:        0
-  Batteries Found:     0
+  Total Steps:         3039
+  Final Score:        10
+  Batteries Found:     1
 
 ### RULE STATISTICS
-  Total Rules:         1011
-  Concrete Rules:     19
-  Semantic Rules:     992
-  Derived Rules:      0
-  Avg Weight:         +4.76
-  Max Weight:         +108.00
-  Min Weight:         +0.52
+  Total Rules:         1631
+  Concrete Rules:     21
+  Semantic Rules:     1598
+  Derived Rules:      12
+  Avg Weight:         +5.23
+  Max Weight:         +154.52
+  Min Weight:         +0.54
 
 ### CONCEPTS
-  Total Concepts:     629
-  Simple Concepts:    622
+  Total Concepts:     910
+  Simple Concepts:    903
   Compound Concepts:  7
 
 ### ACTION DISTRIBUTION
-  FORWARD   :  222 ( 22.0%)
-  BACKWARD  :  223 ( 22.1%)
-  LEFT      :  281 ( 27.8%)
-  RIGHT     :  285 ( 28.2%)
+  FORWARD   :  356 ( 21.8%)
+  BACKWARD  :  367 ( 22.5%)
+  LEFT      :  446 ( 27.3%)
+  RIGHT     :  462 ( 28.3%)
 
 ### RFT RELATIONSHIPS
-  Total Frames:       2
-  Coordination:       0
-  Opposition:         2
+  Total Frames:       36
+  Coordination:       18
+  Opposition:         15
 
 ### HOMEOSTASIS
-  Final Hunger:       0
-  Final Tiredness:    0
+  Final Hunger:       419
+  Final Tiredness:    602
   Bayesian Mode:      ENABLED
 
 ### LEARNING EFFICIENCY
-  Score/Step:         0.0000
-  Rules/Step:         0.0000
-  Exploration:        0 steps
+  Score/Step:         0.0033
+  Rules/Step:         0.5367
+  Exploration:        3029 steps
 
 ============================================================
 ### BOT 2 REPORT (ACTIVE)
 ============================================================
 
 ### EXECUTIVE SUMMARY
-  Total Steps:         0
-  Final Score:        0
-  Batteries Found:     0
+  Total Steps:         3039
+  Final Score:        70
+  Batteries Found:     7
 
 ### RULE STATISTICS
-  Total Rules:         683
-  Concrete Rules:     0
-  Semantic Rules:     683
-  Derived Rules:      0
-  Avg Weight:         +3.17
-  Max Weight:         +33.00
-  Min Weight:         +0.58
+  Total Rules:         1214
+  Concrete Rules:     2
+  Semantic Rules:     1198
+  Derived Rules:      14
+  Avg Weight:         +2.58
+  Max Weight:         +36.78
+  Min Weight:         +0.51
 
 ### CONCEPTS
-  Total Concepts:     533
-  Simple Concepts:    529
-  Compound Concepts:  4
+  Total Concepts:     850
+  Simple Concepts:    839
+  Compound Concepts:  11
 
 ### ACTION DISTRIBUTION
-  FORWARD   :  153 ( 22.4%)
-  BACKWARD  :  151 ( 22.1%)
-  LEFT      :  189 ( 27.7%)
-  RIGHT     :  190 ( 27.8%)
+  FORWARD   :  279 ( 23.0%)
+  BACKWARD  :  258 ( 21.3%)
+  LEFT      :  347 ( 28.6%)
+  RIGHT     :  330 ( 27.2%)
 
 ### RFT RELATIONSHIPS
-  Total Frames:       13
-  Coordination:       7
-  Opposition:         2
+  Total Frames:       77
+  Coordination:       54
+  Opposition:         17
 
 ### HOMEOSTASIS
-  Final Hunger:       0
-  Final Tiredness:    0
+  Final Hunger:       354
+  Final Tiredness:    49
   Bayesian Mode:      ENABLED
 
 ### LEARNING EFFICIENCY
-  Score/Step:         0.0000
-  Rules/Step:         0.0000
-  Exploration:        0 steps
+  Score/Step:         0.0230
+  Rules/Step:         0.3995
+  Exploration:        2969 steps
 
 ============================================================
                     END OF REPORT
